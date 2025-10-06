@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Detalle de Pedido - Confirmación de Entrega</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .muted-small { font-size:0.9rem; color:#6c757d; }
+    .line { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #eee; }
+    .big-title { font-weight:700; font-size:1.2rem; }
+    .badge-delivered { background:#d1e7dd; color:#0f5132; padding:6px 8px; border-radius:8px; }
+    .badge-confirmed { background:#cfe2ff; color:#084298; padding:6px 8px; border-radius:8px; }
+    .img-preview { max-width:320px; border-radius:8px; border:1px solid #e9ecef; }
+    .small-note { font-size:0.85rem; color:#6c757d; }
+    .signature-pad { border:1px dashed #ced4da; height:140px; border-radius:6px; background:#fff; display:flex; align-items:center; justify-content:center; color:#6c757d; }
+  </style>
+</head>
+<body class="bg-light">
+  <div class="container mt-4 mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="big-title" id="titleEl">Pedido —</div>
+      <div id="stateBadgeWrap"></div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="mb-3">
+          <div class="muted-small">Dirección</div>
+          <div id="addressEl" class="fw-semibold">—</div>
+        </div>
+
+        <div class="mb-3">
+          <div class="muted-small">Cliente</div>
+          <div id="clientEl" class="fw-semibold">—</div>
+        </div>
+
+        <div class="mb-3">
+          <div class="muted-small">Estado</div>
+          <div class="d-flex justify-content-between align-items-center">
+            <div id="statusEl" class="fw-semibold">—</div>
+            <div>
+              <!-- Edit only status -->
+              <button id="btnEdit" class="btn btn-sm btn-outline-secondary me-2" onclick="openStatusModal()">Editar estado</button>
+            </div>
+          </div>
+        </div>
+
+        <hr/>
+
+        <div class="mb-3">
+          <div class="muted-small mb-2">Foto entregado (opcional)</div>
+          <div class="d-flex justify-content-center mb-2">
+            <img id="photoEl" src="" alt="Foto entrega" class="img-preview d-none" />
+          </div>
+          <div class="d-flex gap-2 justify-content-center">
+            <input id="photoInput" type="file" accept="image/*" class="form-control form-control-sm w-auto" onchange="onPhotoSelected(event)" />
+            <button id="btnClearPhoto" class="btn btn-outline-danger btn-sm" onclick="clearPhoto()">Limpiar</button>
+          </div>
+        </div>
+
+        <hr/>
+
+        <div id="localActions" class="mb-3">
+          <div class="muted-small mb-2">Entrega en local</div>
+          <div class="d-flex gap-2">
+            <button id="btnMarkDelivered" class="btn btn-success" onclick="markDeliveredLocal()">Marcar como Entregado en caja</button>
+            <div id="deliveredInfo" class="small-note align-self-center"></div>
+          </div>
+        </div>
+
+        <div id="deliveryActions" class="mb-3 d-none">
+          <div class="muted-small mb-2">Entrega a domicilio (Pedido 789)</div>
+          <div class="small-note mb-2">Simula firma digital: el cliente firma y se confirma la entrega</div>
+
+          <div id="signatureArea" class="mb-2">
+            <div id="signaturePad" class="signature-pad" onclick="simulateSignature()">Haga clic aquí para simular firma</div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button id="btnConfirmSignature" class="btn btn-primary" onclick="confirmSignature()" disabled>Confirmar firma y marcar como Confirmada</button>
+            <button id="btnClearSignature" class="btn btn-outline-secondary" onclick="clearSignature()" disabled>Limpiar firma</button>
+          </div>
+
+          <div id="signatureInfo" class="small-note mt-2"></div>
+        </div>
+
+        <div id="logArea" class="mt-3 small-note"></div>
+
+        <div class="d-flex justify-content-start mt-4">
+          <button class="btn btn-outline-secondary me-2" onclick="history.back()">Atrás</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="msgArea"></div>
+  </div>
+
+  <!-- Modal: editar solo estado -->
+  <div class="modal fade" id="modalStatus" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title">Editar estado del pedido</h6>
+          <button class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <p class="muted-small mb-2">Solo es posible editar el estado. Dirección y cliente son de solo lectura.</p>
+          <div class="mb-3">
+            <label class="form-label small mb-1">Estado</label>
+            <select id="modalStateSelect" class="form-select">
+              <option value="Pendiente">Pendiente</option>
+              <option value="En Preparación">En Preparación</option>
+              <option value="Listo">Listo</option>
+              <option value="En camino">En camino</option>
+              <option value="Entregado">Entregado</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small mb-1">Comentario (opcional)</label>
+            <textarea id="modalStateComment" class="form-control" rows="2" placeholder="Registro de nota interna"></textarea>
+          </div>
+          <div class="small-note">La dirección y cliente no pueden ser modificados desde este formulario.</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          <button class="btn btn-primary" onclick="saveStateChange()">Guardar estado</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const ORDERS_KEY = "ORDERS_B25";
+
+function seedIfNeeded() {
+  try {
+    const existing = JSON.parse(localStorage.getItem(ORDERS_KEY) || "null");
+    if (existing && Array.isArray(existing) && existing.length) return;
+    const now = Date.now();
+    const orders = [
+      { id: "LOCAL-001", type: "local", client: "Cliente Local", address: "Entrega en caja", status: "Listo", createdAt: now - 3600000, deliveredAt: null, photo: null, signature: null, notes: [] },
+      { id: "789", type: "delivery", client: "Cliente Domicilio", address: "Av. Principal 123", status: "En despacho", createdAt: now - 7200000, deliveredAt: null, photo: null, signature: null, notes: [] }
+    ];
+    localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+  } catch(e) { console.error(e); }
+}
+
+function loadOrders() {
+  try { return JSON.parse(localStorage.getItem(ORDERS_KEY) || "[]"); } catch { return []; }
+}
+function saveOrders(arr) { localStorage.setItem(ORDERS_KEY, JSON.stringify(arr)); }
+function findOrder(id) { return loadOrders().find(o => String(o.id) === String(id)); }
+function getRequestedOrderId() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('id') || localStorage.getItem('LAST_VIEWED_ORDER') || 'LOCAL-001';
+}
+
+function render() {
+  seedIfNeeded();
+  const id = getRequestedOrderId();
+  localStorage.setItem('LAST_VIEWED_ORDER', id);
+  const order = findOrder(id);
+  const titleEl = document.getElementById('titleEl');
+  const addrEl = document.getElementById('addressEl');
+  const clientEl = document.getElementById('clientEl');
+  const statusEl = document.getElementById('statusEl');
+  const badgeWrap = document.getElementById('stateBadgeWrap');
+  const photoEl = document.getElementById('photoEl');
+
+  if (!order) {
+    titleEl.textContent = `Pedido ${id} — no encontrado`;
+    addrEl.textContent = '—';
+    clientEl.textContent = '—';
+    statusEl.textContent = '—';
+    badgeWrap.innerHTML = '';
+    document.getElementById('localActions').classList.add('d-none');
+    document.getElementById('deliveryActions').classList.add('d-none');
+    return;
+  }
+
+  titleEl.textContent = `Pedido ${order.id}`;
+  addrEl.textContent = order.address || '—';
+  clientEl.textContent = order.client || '—';
+  statusEl.textContent = order.status || '—';
+
+  badgeWrap.innerHTML = '';
+  if (order.status === 'Entregado') badgeWrap.innerHTML = `<span class="badge-delivered">Entregado</span>`;
+  else if (order.status === 'Confirmada') badgeWrap.innerHTML = `<span class="badge-confirmed">Confirmada</span>`;
+  else badgeWrap.innerHTML = `<span class="muted-small">${escapeHtml(order.status || '')}</span>`;
+
+  if (order.photo) {
+    photoEl.src = order.photo;
+    photoEl.classList.remove('d-none');
+  } else {
+    photoEl.src = '';
+    photoEl.classList.add('d-none');
+  }
+
+  if (order.type === 'local') {
+    document.getElementById('localActions').classList.remove('d-none');
+    document.getElementById('deliveryActions').classList.add('d-none');
+    document.getElementById('deliveredInfo').textContent = order.deliveredAt ? `Entregado: ${new Date(order.deliveredAt).toLocaleString()}` : '';
+  } else {
+    document.getElementById('localActions').classList.add('d-none');
+    document.getElementById('deliveryActions').classList.remove('d-none');
+    const hasSignature = !!order.signature;
+    document.getElementById('signaturePad').textContent = hasSignature ? 'Firma capturada' : 'Haga clic aquí para simular firma';
+    document.getElementById('btnConfirmSignature').disabled = !hasSignature;
+    document.getElementById('btnClearSignature').disabled = !hasSignature;
+    document.getElementById('signatureInfo').textContent = order.signature ? `Firmado por ${order.signature.name} a las ${new Date(order.signature.at).toLocaleString()}` : '';
+  }
+
+  document.getElementById('logArea').innerHTML = `Creado: ${new Date(order.createdAt).toLocaleString()}${order.deliveredAt ? ` · Entregado: ${new Date(order.deliveredAt).toLocaleString()}` : ''}${order.notes && order.notes.length ? ` · Notas: ${order.notes.join(' | ')}` : ''}`;
+}
+
+function openStatusModal() {
+  const id = getRequestedOrderId();
+  const order = findOrder(id);
+  if (!order) return showMessage('Orden no encontrada', 'danger');
+  const sel = document.getElementById('modalStateSelect');
+  sel.value = normalizeStatusForSelect(order.status);
+  document.getElementById('modalStateComment').value = '';
+  const m = new bootstrap.Modal(document.getElementById('modalStatus'));
+  m.show();
+}
+
+function normalizeStatusForSelect(s) {
+  if (!s) return 'Pendiente';
+  const map = {
+    'Listo': 'Listo',
+    'En despacho': 'En camino',
+    'Confirmada': 'Entregado',
+    'Entregado': 'Entregado',
+    'En Preparación': 'En Preparación',
+    'En Preparacion': 'En Preparación'
+  };
+  return map[s] || s;
+}
+
+function saveStateChange() {
+  const id = getRequestedOrderId();
+  const orders = loadOrders();
+  const idx = orders.findIndex(o => o.id === id);
+  if (idx === -1) return showMessage('Orden no encontrada', 'danger');
+  const newStatus = document.getElementById('modalStateSelect').value;
+  const comment = document.getElementById('modalStateComment').value.trim();
+  orders[idx].status = newStatus;
+  if (!orders[idx].notes) orders[idx].notes = [];
+  if (comment) orders[idx].notes.unshift(`${new Date().toLocaleString()}: ${comment}`);
+  if (newStatus === 'Entregado' && !orders[idx].deliveredAt) {
+    orders[idx].deliveredAt = Date.now();
+    simulateCentralNotification(orders[idx]);
+  }
+  saveOrders(orders);
+  bootstrap.Modal.getInstance(document.getElementById('modalStatus')).hide();
+  render();
+  showMessage('Estado actualizado correctamente', 'success');
+}
+
+function markDeliveredLocal() {
+  const id = getRequestedOrderId();
+  const orders = loadOrders();
+  const idx = orders.findIndex(o => o.id === id);
+  if (idx === -1) return showMessage('Orden no encontrada', 'danger');
+  if (orders[idx].status === 'Entregado') {
+    showMessage('La orden ya fue marcada como entregada', 'info');
+    return;
+  }
+  const photoEl = document.getElementById('photoEl');
+  if (photoEl && photoEl.src) orders[idx].photo = photoEl.src;
+  orders[idx].status = 'Entregado';
+  orders[idx].deliveredAt = Date.now();
+  saveOrders(orders);
+  render();
+  showMessage('Pedido marcado como Entregado en caja; hora registrada', 'success');
+  simulateCentralNotification(orders[idx]);
+}
+
+function simulateSignature() {
+  const pad = document.getElementById('signaturePad');
+  const signature = {
+    name: 'Cliente firmante',
+    at: Date.now(),
+    dataUrl: 'data:svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="60"><text x="10" y="35" font-family="sans-serif" font-size="14">Firma simulada</text></svg>'
+  };
+  pad.dataset.signature = JSON.stringify(signature);
+  pad.textContent = 'Firma simulada lista';
+  document.getElementById('btnConfirmSignature').disabled = false;
+  document.getElementById('btnClearSignature').disabled = false;
+  showMessage('Firma simulada capturada (confirme para registrar)', 'info');
+}
+
+function confirmSignature() {
+  const id = getRequestedOrderId();
+  const orders = loadOrders();
+  const idx = orders.findIndex(o => o.id === id);
+  if (idx === -1) return showMessage('Orden no encontrada', 'danger');
+  const pad = document.getElementById('signaturePad');
+  if (!pad.dataset.signature) return showMessage('No hay firma capturada', 'warning');
+  const signature = JSON.parse(pad.dataset.signature);
+  orders[idx].signature = signature;
+  orders[idx].status = 'Entregado';
+  orders[idx].deliveredAt = signature.at;
+  saveOrders(orders);
+  delete pad.dataset.signature;
+  render();
+  showMessage('Entrega confirmada con firma; notificación enviada al sistema central', 'success');
+  simulateCentralNotification(orders[idx]);
+}
+
+function clearSignature() {
+  const pad = document.getElementById('signaturePad');
+  delete pad.dataset.signature;
+  pad.textContent = 'Haga clic aquí para simular firma';
+  document.getElementById('btnConfirmSignature').disabled = true;
+  document.getElementById('btnClearSignature').disabled = true;
+  document.getElementById('signatureInfo').textContent = '';
+  showMessage('Firma limpiada', 'info');
+}
+
+function onPhotoSelected(e) {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    const data = ev.target.result;
+    document.getElementById('photoEl').src = data;
+    document.getElementById('photoEl').classList.remove('d-none');
+    showMessage('Foto cargada (opcional)', 'info');
+  };
+  reader.readAsDataURL(file);
+}
+function clearPhoto() {
+  document.getElementById('photoEl').src = '';
+  document.getElementById('photoEl').classList.add('d-none');
+  document.getElementById('photoInput').value = '';
+  showMessage('Foto eliminada', 'info');
+}
+
+const NOTIF_KEY = 'B25_NOTIFICATIONS';
+function simulateCentralNotification(order) {
+  try {
+    const notif = { id: 'N-' + Math.random().toString(36).slice(2,9).toUpperCase(), orderId: order.id, status: order.status, at: Date.now() };
+    const arr = JSON.parse(localStorage.getItem(NOTIF_KEY) || '[]');
+    arr.unshift(notif);
+    localStorage.setItem(NOTIF_KEY, JSON.stringify(arr));
+    console.info('Notificación simulada enviada:', notif);
+  } catch(e) { console.error(e); }
+}
+
+function escapeHtml(s){ return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+function showMessage(text, type='info') { const area = document.getElementById('msgArea'); area.innerHTML = `<div class="alert alert-${type}">${escapeHtml(text)}</div>`; setTimeout(()=> area.innerHTML = '', 3500); }
+
+document.addEventListener('DOMContentLoaded', () => {
+  seedIfNeeded();
+  render();
+});
+</script>
+</body>
+</html>
