@@ -56,7 +56,7 @@
 
       <!-- Mensaje final -->
       <div id="step-done" class="d-none">
-        <div class="alert alert-success">Contraseña actualizada correctamente. Ya puedes iniciar sesión con tu nueva contraseña.</div>
+        <div class="alert alert-success">Contraseña actualizada correctamente. Serás redirigido a la pantalla de inicio de sesión.</div>
         <button class="btn btn-primary w-100" onclick="irALogin()">Ir a Iniciar sesión</button>
       </div>
     </div>
@@ -64,25 +64,16 @@
 </div>
 
 <script>
-/*
- Simulación front-end de flujo de recuperación:
- - Email de prueba: cliente@ejemplo.com
- - Tokens: abc123 (válido), xyz789 (expirado)
- - Enlace simulado contiene token como parámetro ?token=...
- - No hay backend; todo simulado en memoria
-*/
 
 const TEST_EMAIL = "cliente@ejemplo.com";
 const VALID_TOKEN = "abc123";
 const EXPIRED_TOKEN = "xyz789";
 
-// Simulated token store with creation times (ms). abc123 is fresh, xyz789 expired (>24h)
 const tokenStore = {
   [VALID_TOKEN]: { email: TEST_EMAIL, createdAt: Date.now() - (1000 * 60 * 60) }, // 1h ago
   [EXPIRED_TOKEN]: { email: TEST_EMAIL, createdAt: Date.now() - (1000 * 60 * 60 * 24 * 2) } // 48h ago
 };
 
-// Simulated user store (email -> password)
 const userStore = {
   [TEST_EMAIL]: "Segura2025"
 };
@@ -93,7 +84,6 @@ function mostrarPaso(id) {
   document.getElementById(id).classList.remove("d-none");
 }
 
-/* Enviar enlace (simulado): valida email y muestra mensaje + enlaces simulados */
 function enviarEnlace() {
   const email = document.getElementById("recEmail").value.trim().toLowerCase();
   const reqErr = document.getElementById("reqErr");
@@ -108,21 +98,18 @@ function enviarEnlace() {
   }
 
   if (email !== TEST_EMAIL) {
-    // For this simulation, only known email triggers "sent"
     reqErr.textContent = "Si el correo está registrado, recibirás un enlace. (simulación)";
     reqErr.classList.remove("d-none");
     return;
   }
 
-  // "Send" link: create a new token (simulate) and show simulated links area
-  const newToken = VALID_TOKEN; // for test we reuse VALID_TOKEN
+  const newToken = VALID_TOKEN;
   tokenStore[newToken] = { email, createdAt: Date.now() };
 
   mostrarPaso("step-sent");
   const simLinks = document.getElementById("simLinks");
   simLinks.innerHTML = "";
 
-  // Show simulated valid and expired links for testing
   const validLink = crearEnlaceHTML(newToken, "Enlace válido (abc123)");
   const expiredLink = crearEnlaceHTML(EXPIRED_TOKEN, "Enlace expirado (xyz789)");
   simLinks.appendChild(validLink);
@@ -132,7 +119,6 @@ function enviarEnlace() {
   reqMsg.classList.remove("d-none");
 }
 
-/* Crear elemento con enlace simulado que abre el flujo de token */
 function crearEnlaceHTML(token, label) {
   const wrapper = document.createElement("div");
   wrapper.className = "mb-2";
@@ -144,14 +130,11 @@ function crearEnlaceHTML(token, label) {
   return wrapper;
 }
 
-/* Cuando el usuario "hace clic" en el enlace recibido con token */
 function abrirLinkToken(token) {
-  // Validate token exists
   if (!tokenStore[token]) {
     mostrarPaso("step-expired");
     return;
   }
-  // Check expiry (24 hours)
   const created = tokenStore[token].createdAt;
   const now = Date.now();
   const ms24 = 24 * 60 * 60 * 1000;
@@ -159,12 +142,10 @@ function abrirLinkToken(token) {
     mostrarPaso("step-expired");
     return;
   }
-  // Ok: show reset form
   document.getElementById("tokenShown").textContent = token;
   mostrarPaso("step-reset");
 }
 
-/* Restablecer contraseña: validar token, contraseñas y actualizar userStore */
 function restablecer() {
   const token = document.getElementById("tokenShown").textContent.trim();
   const pass = document.getElementById("newPass").value;
@@ -180,7 +161,6 @@ function restablecer() {
     return;
   }
 
-  // Check expiry again
   const created = tokenStore[token].createdAt;
   if ((Date.now() - created) > (24 * 60 * 60 * 1000)) {
     mostrarPaso("step-expired");
@@ -198,36 +178,32 @@ function restablecer() {
     return;
   }
 
-  // Update password in simulated store
   const email = tokenStore[token].email;
   userStore[email] = pass;
 
-  // Optionally invalidate token
   delete tokenStore[token];
 
   ok.textContent = "Contraseña actualizada correctamente.";
   ok.classList.remove("d-none");
 
-  // Show final step
-  setTimeout(() => mostrarPaso("step-done"), 800);
+  setTimeout(() => {
+    mostrarPaso("step-done");
+    setTimeout(() => {
+      window.location.href = 'B01Final.html';
+    }, 900);
+  }, 400);
 }
 
-/* Volver a solicitar (desde mensajes) */
 function volverARequest() {
   mostrarPaso("step-request");
   document.getElementById("reqMsg").classList.add("d-none");
   document.getElementById("reqErr").classList.add("d-none");
 }
 
-/* Ir a login (simulación) */
 function irALogin() {
-  alert("Simulación: redirigir a pantalla de inicio de sesión.");
-  // Aquí redirigirías a la página de login real, por ejemplo:
-  // window.location.href = '/login.html';
-  mostrarPaso("step-request");
+  window.location.href = 'B01Final.html';
 }
 
-/* On load: show request step */
 mostrarPaso("step-request");
 </script>
 </body>
