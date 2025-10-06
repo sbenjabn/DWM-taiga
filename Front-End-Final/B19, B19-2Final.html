@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reporte - Big Bite</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .muted-small { font-size:0.9rem; color:#6c757d; }
+    .card-title { font-weight:600; }
+    .metrics { display:flex; gap:12px; margin-bottom:12px; }
+    .metric { background:#f8f9fa; padding:10px 12px; border-radius:8px; min-width:140px; }
+    .table-wrap { max-height:420px; overflow:auto; }
+    .actions { display:flex; gap:8px; align-items:center; }
+  </style>
+</head>
+<body class="bg-light">
+  <div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="mb-0">Generar reporte</h4>
+      <div class="muted-small">Seleccione rango y tipo de reporte</div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="row g-2 align-items-end">
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Desde</label>
+            <input id="dateFrom" type="date" class="form-control" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Hasta</label>
+            <input id="dateTo" type="date" class="form-control" />
+          </div>
+          <div class="col-md-3">
+            <label class="form-label small mb-1">Tipo de reporte</label>
+            <select id="reportType" class="form-select">
+              <option value="ventas">Ventas</option>
+              <option value="pedidos">Pedidos</option>
+            </select>
+          </div>
+          <div class="col-md-3 d-grid">
+            <button class="btn btn-primary" onclick="generarReporte()">Generar reporte</button>
+          </div>
+        </div>
+        <div class="mt-3 muted-small">Para un solo día, deje la misma fecha en Desde y Hasta</div>
+      </div>
+    </div>
+
+    <div id="resultSection" class="d-none">
+      <div class="card mb-3">
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-2">
+            <div class="card-title" id="reportTitle">Reporte</div>
+            <div class="actions">
+              <button class="btn btn-outline-secondary" onclick="history.back()">Atrás</button>
+              <button class="btn btn-outline-success" onclick="exportCSV()">Exportar CSV</button>
+              <button class="btn btn-primary" onclick="imprimirReporte()">Exportar PDF</button>
+            </div>
+          </div>
+
+          <div class="metrics" id="metricsArea"></div>
+
+          <div class="table-wrap">
+            <table class="table table-sm table-striped">
+              <thead>
+                <tr id="tableHead"></tr>
+              </thead>
+              <tbody id="tableBody"></tbody>
+            </table>
+          </div>
+
+          <div id="reportNotes" class="muted-small mt-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="msgArea"></div>
+  </div>
+
+<script>
+
+const SAMPLE_KEY = "bb_report_samples_v1";
+
+function seedSamples() {
+  try {
+    if (localStorage.getItem(SAMPLE_KEY)) return;
+    const samples = [];
+
+    for (let d = 1; d <= 30; d++) {
+      const day = d.toString().padStart(2,'0');
+      const date = `2023-08-${day}`;
+      const count = Math.floor(Math.random()*5) + 3;
+      for (let i=0;i<count;i++) {
+        const items = [];
+        const menu = [
+          { nombre: "Hamburguesa queso", precio: 5990 },
+          { nombre: "Papas medianas", precio: 1990 },
+          { nombre: "Coca Cola", precio: 1200 }
+        ];
+        const pick = menu[Math.floor(Math.random()*menu.length)];
+        items.push({ nombre: pick.nombre, qty: 1, precio: pick.precio });
+        samples.push({ date, type: 'venta', items, total: pick.precio, status: 'entregado', prepTimeMin: 10 + Math.floor(Math.random()*8), dispatchTimeMin: 5 + Math.floor(Math.random()*6) });
+      }
+    }
+
+    const dateSep = "2023-09-10";
+    const statuses = ['entregado','entregado','cancelado','entregado'];
+    for (let i=0;i<12;i++) {
+      const items = [{ nombre: (i%2===0 ? "Hamburguesa queso" : "Papas medianas"), qty:1, precio: i%2===0?5990:1990 }];
+      samples.push({ date: dateSep, type: 'pedido', items, total: items.reduce((s,it)=> s + it.precio*it.qty,0), status: statuses[i%statuses.length], prepTimeMin: 8 + Math.floor(Math.random()*10), dispatchTimeMin: 4 + Math.floor(Math.random()*6) });
+    }
+
+    localStorage.setItem(SAMPLE_KEY, JSON.stringify(samples));
+  } catch(e) { console.error(e); }
+}
+
+function loadSamples() {
+  try { return JSON.parse(localStorage.getItem(SAMPLE_KEY) || "[]"); } catch { return []; }
+}
+
+function formatCurrency(n){ return `$ ${Number(n||0).toLocaleString()}`; }
+function showMessage(text, type='info'){ const area = document.getElementById('msgArea'); area.innerHTML = `<div class="alert alert-${type}">${text}</div>`; setTimeout(()=> area.innerHTML = '', 3500); }
+function parseDateInput(v){ return v ? v : null; }
+
+function generarReporte() {
+  const from = parseDateInput(document.getElementById('dateFrom').value);
+  const to = parseDateInput(document.getElementById('dateTo').value);
+  const type = document.getElementById('reportType').value;
+
+  if (!from || !to) return showMessage('Selecciona desde y hasta', 'warning');
+  if (from > to) return showMessage('El rango es inválido (desde debe ser <= hasta)', 'warning');
+
+  const samples = loadSamples().filter(s => s.date >= from && s.date <= to && ((type === 'ventas' && s.type === 'venta') || (type === 'pedidos' && s.type === 'pedido')) );
+
+  const title = `${type === 'ventas' ? 'Reporte de Ventas' : 'Reporte de Pedidos'} · ${from} → ${to}`;
+  document.getElementById('reportTitle').textContent = title;
+
+  const metricsArea = document.getElementById('metricsArea');
+  metricsArea.innerHTML = '';
+
+  if (type === 'ventas') {
+    const totalVentas = samples.reduce((s,it) => s + (it.total || 0), 0);
+    const totalCount = samples.length;
+    const ticketProm = totalCount ? Math.round(totalVentas / totalCount) : 0;
+    const prodMap = {};
+    samples.forEach(s => s.items.forEach(it => { prodMap[it.nombre] = (prodMap[it.nombre]||0) + (it.qty||1); }));
+    const top = Object.entries(prodMap).sort((a,b)=> b[1]-a[1]).slice(0,3);
+
+    metricsArea.appendChild(createMetric('Total ventas', formatCurrency(totalVentas)));
+    metricsArea.appendChild(createMetric('Número de tickets', totalCount));
+    metricsArea.appendChild(createMetric('Ticket promedio', formatCurrency(ticketProm)));
+    metricsArea.appendChild(createMetric('Top productos', top.map(t=> `${t[0]} (${t[1]})`).join(', ') || '—'));
+
+    const head = ['Fecha','Items','Total'];
+    fillTable(head, samples.map((s, i) => ({
+      Fecha: s.date,
+      Items: s.items.map(it => `${it.nombre} x${it.qty||1}`).join(', '),
+      Total: formatCurrency(s.total || 0)
+    })));
+    document.getElementById('reportNotes').textContent = `Datos generados a partir del rango seleccionado. Tickets: ${totalCount}.`;
+  } else {
+    const totalPedidos = samples.length;
+    const entregados = samples.filter(s=>s.status==='entregado').length;
+    const cancelados = samples.filter(s=>s.status==='cancelado').length;
+    const avgPrep = totalPedidos ? Math.round(samples.reduce((s,it)=> s + (it.prepTimeMin||0),0) / totalPedidos) : 0;
+    const avgDispatch = totalPedidos ? Math.round(samples.reduce((s,it)=> s + (it.dispatchTimeMin||0),0) / totalPedidos) : 0;
+
+    metricsArea.appendChild(createMetric('Pedidos totales', totalPedidos));
+    metricsArea.appendChild(createMetric('Entregados', entregados));
+    metricsArea.appendChild(createMetric('Cancelados', cancelados));
+    metricsArea.appendChild(createMetric('Prep. promedio (min)', `${avgPrep} min`));
+    metricsArea.appendChild(createMetric('Despacho promedio (min)', `${avgDispatch} min`));
+
+    const head = ['Fecha','Items','Estado','Prep (min)','Despacho (min)'];
+    fillTable(head, samples.map(s => ({
+      Fecha: s.date,
+      Items: s.items.map(it => `${it.nombre} x${it.qty||1}`).join(', '),
+      Estado: s.status || '-',
+      'Prep (min)': s.prepTimeMin || '-',
+      'Despacho (min)': s.dispatchTimeMin || '-'
+    })));
+    document.getElementById('reportNotes').textContent = `Periodo: ${from} → ${to}. Pedidos: ${totalPedidos}.`;
+  }
+
+  document.getElementById('resultSection').classList.remove('d-none');
+}
+
+function createMetric(title, value) {
+  const div = document.createElement('div');
+  div.className = 'metric';
+  div.innerHTML = `<div class="muted-small">${escapeHtml(title)}</div><div class="fw-semibold">${escapeHtml(String(value))}</div>`;
+  return div;
+}
+
+function fillTable(headers, rows) {
+  const thead = document.getElementById('tableHead');
+  const tbody = document.getElementById('tableBody');
+  thead.innerHTML = '';
+  tbody.innerHTML = '';
+  headers.forEach(h => {
+    const th = document.createElement('th');
+    th.textContent = h;
+    thead.appendChild(th);
+  });
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    headers.forEach(h => {
+      const td = document.createElement('td');
+      td.textContent = r[h] ?? '';
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function exportCSV() {
+  const ths = Array.from(document.querySelectorAll('#tableHead th')).map(t => t.textContent);
+  const rows = Array.from(document.querySelectorAll('#tableBody tr')).map(tr => Array.from(tr.children).map(td => td.textContent.replaceAll('"','""')));
+  if (ths.length === 0) return showMessage('No hay datos para exportar', 'warning');
+  let csv = '"' + ths.join('","') + '"\n';
+  rows.forEach(r => csv += '"' + r.join('","') + '"\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const type = document.getElementById('reportType').value;
+  const from = document.getElementById('dateFrom').value.replaceAll('-','');
+  const to = document.getElementById('dateTo').value.replaceAll('-','');
+  a.download = `reporte_${type}_${from}_${to}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function imprimirReporte() {
+  window.print();
+}
+
+function escapeHtml(s){ return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+(function init(){
+  seedSamples();
+  document.getElementById('dateFrom').value = '2023-08-01';
+  document.getElementById('dateTo').value = '2023-08-30';
+  document.getElementById('reportType').value = 'ventas';
+})();
+</script>
+</body>
+</html>
