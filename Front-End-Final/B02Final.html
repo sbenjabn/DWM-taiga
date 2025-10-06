@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gestión de Usuarios y Roles - Big Bite</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .perm-list li { margin-bottom: 6px; }
+    .role-row:hover { background: #f8fafc; }
+  </style>
+</head>
+<body class="bg-light">
+
+<div class="container mt-4">
+  <!-- Buscador + Botones -->
+  <div class="row mb-2">
+    <div class="col-12 col-md-2 d-flex align-items-center">Buscar usuario:</div>
+    <div class="col-12 col-md-6 mb-2 mb-md-0">
+      <input type="text" id="buscador" class="form-control" placeholder="Ej: Camila Rojas" oninput="filtrarUsuarios()" />
+    </div>
+    <div class="col-12 col-md-4 d-flex justify-content-md-end gap-2">
+      <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#modalNuevo">+ Nuevo</button>
+      <button class="btn btn-info" onclick="abrirGestionRoles()">Gestión de roles</button>
+    </div>
+  </div>
+
+  <!-- Título -->
+  <div class="row mb-3">
+    <div class="col-12"><h5>Lista de usuarios</h5></div>
+  </div>
+
+  <!-- Encabezados -->
+  <div class="row fw-bold mb-2">
+    <div class="col-4">Nombre</div>
+    <div class="col-4">Rol actual</div>
+    <div class="col-4">Acciones</div>
+  </div>
+
+  <!-- Contenedor de usuarios -->
+  <div id="listaUsuarios">
+    <!-- Camila sin rol (botón Asignar rol) -->
+    <div class="row mb-2 align-items-center role-row" data-nombre="Camila Rojas">
+      <div class="col-4">Camila Rojas</div>
+      <div class="col-4 rol text-muted">Sin rol</div>
+      <div class="col-4">
+        <button class="btn btn-outline-success btn-sm asignar-btn" onclick="asignarRol('Camila Rojas')">Asignar rol</button>
+      </div>
+    </div>
+
+    <!-- Luis con rol inicial -->
+    <div class="row mb-2 align-items-center role-row" data-nombre="Luis Ramírez">
+      <div class="col-4">Luis Ramírez</div>
+      <div class="col-4 rol">Encargado de cocina</div>
+      <div class="col-4">
+        <button class="btn btn-outline-warning btn-sm" onclick="editarRol('Luis Ramírez')">Editar rol</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nuevo Usuario -->
+<div class="modal fade" id="modalNuevo" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Crear nuevo usuario</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">Nombre completo</label>
+        <input type="text" id="nuevoNombre" class="form-control mb-3" placeholder="Ej: Camila Rojas" />
+
+        <label class="form-label">Rol</label>
+        <select class="form-select" id="nuevoRol">
+          <option value="Sin rol">Sin rol</option>
+          <option value="Cajero">Cajero</option>
+          <option value="Encargado de cocina">Encargado de cocina</option>
+          <option value="Supervisor">Supervisor</option>
+          <option value="Encargado de bodega">Encargado de bodega</option>
+        </select>
+
+        <div id="nuevoError" class="text-danger mt-2 d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="agregarUsuario()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Editar / Asignar Rol -->
+<div class="modal fade" id="modalEditarRol" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Asignar / Editar rol</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="usuarioEditar" class="fw-bold mb-2">Usuario: </p>
+        <label class="form-label">Rol</label>
+        <select class="form-select" id="rolEditado">
+          <option value="Sin rol">Sin rol</option>
+          <option value="Cajero">Cajero</option>
+          <option value="Encargado de cocina">Encargado de cocina</option>
+          <option value="Supervisor">Supervisor</option>
+          <option value="Encargado de bodega">Encargado de bodega</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-warning" onclick="actualizarRol()">Actualizar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Permisos (ver rol) -->
+<div class="modal fade" id="modalPermisos" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Permisos</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="permisosContenido"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Gestión de roles (agregar/quitar permisos) -->
+<div class="modal fade" id="modalGestionRoles" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Gestión de roles</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row">
+          <div class="col-12 col-md-4 mb-3">
+            <label class="form-label">Seleccionar rol</label>
+            <select id="selectRolGestion" class="form-select" onchange="cargarPermisosRolSeleccionado()"></select>
+          </div>
+          <div class="col-12 col-md-8 mb-3 d-flex align-items-end">
+            <input type="text" id="nuevoPermisoInput" class="form-control me-2" placeholder="Agregar permiso nuevo (ej: Ver inventario)" />
+            <button class="btn btn-primary" onclick="agregarPermisoARol()">Agregar permiso</button>
+          </div>
+        </div>
+
+        <hr />
+
+        <div id="permisosRolArea">
+          <!-- Aquí se cargan checkboxes de permisos del rol -->
+        </div>
+
+        <div class="text-muted mt-3">Marca o desmarca permisos y presiona "Guardar cambios" para actualizar el rol.</div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="restaurarPermisosOriginales()">Restaurar valores por defecto</button>
+        <button class="btn btn-primary" onclick="guardarCambiosPermisos()">Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const ROLES_PERMISOS = {
+  "Sin rol": [],
+  "Cajero": [
+    "Acceso al módulo de ventas",
+    "Emisión de comprobantes",
+    "Gestión de ventas diarias"
+  ],
+  "Encargado de cocina": [
+    "Gestión de pedidos",
+    "Supervisión de preparación",
+    "Control de tiempos"
+  ],
+  "Supervisor": [
+    "Reportes de producción",
+    "Control de stock",
+    "Asignación de tareas",
+    "Acceso a reportes"
+  ],
+  "Encargado de bodega": [
+    "Ingreso de insumos",
+    "Control de stock",
+    "Visualización de órdenes"
+  ]
+};
+
+const ROLES_ORIGINALES = JSON.parse(JSON.stringify(ROLES_PERMISOS));
+
+let usuarioSeleccionado = "";
+
+function abrirGestionRoles() {
+  const sel = document.getElementById("selectRolGestion");
+  sel.innerHTML = "";
+  Object.keys(ROLES_PERMISOS).forEach(rol => {
+    const opt = document.createElement("option");
+    opt.value = rol;
+    opt.textContent = rol;
+    sel.appendChild(opt);
+  });
+  sel.value = Object.keys(ROLES_PERMISOS)[0];
+  cargarPermisosRolSeleccionado();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById("modalGestionRoles")).show();
+}
+
+function cargarPermisosRolSeleccionado() {
+  const rol = document.getElementById("selectRolGestion").value;
+  const cont = document.getElementById("permisosRolArea");
+  cont.innerHTML = "";
+
+  const permisos = ROLES_PERMISOS[rol] || [];
+  if (permisos.length === 0) {
+    cont.innerHTML = '<p class="text-muted">Este rol no tiene permisos asignados.</p>';
+    return;
+  }
+
+  const ul = document.createElement("ul");
+  ul.className = "list-unstyled perm-list";
+  permisos.forEach((p, idx) => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <div class="form-check d-flex align-items-center">
+        <input class="form-check-input me-2" type="checkbox" id="perm_chk_${idx}" data-perm="${p}" checked />
+        <label class="form-check-label flex-grow-1" for="perm_chk_${idx}">${p}</label>
+        <button class="btn btn-sm btn-outline-danger ms-2" onclick="quitarPermisoTemporal('${escapeQuotes(p)}')">Quitar</button>
+      </div>
+    `;
+    ul.appendChild(li);
+  });
+  cont.appendChild(ul);
+}
+
+function escapeQuotes(s) { return s.replace(/'/g, "\\'").replace(/"/g, '\\"'); }
+
+function agregarPermisoARol() {
+  const input = document.getElementById("nuevoPermisoInput");
+  const permiso = input.value.trim();
+  if (!permiso) return;
+  const rol = document.getElementById("selectRolGestion").value;
+  if ((ROLES_PERMISOS[rol] || []).includes(permiso)) {
+    alert("El permiso ya existe para este rol.");
+    input.value = "";
+    return;
+  }
+  ROLES_PERMISOS[rol] = ROLES_PERMISOS[rol] || [];
+  ROLES_PERMISOS[rol].push(permiso);
+  input.value = "";
+  cargarPermisosRolSeleccionado();
+}
+
+function quitarPermisoTemporal(perm) {
+  const rol = document.getElementById("selectRolGestion").value;
+  ROLES_PERMISOS[rol] = (ROLES_PERMISOS[rol] || []).filter(p => p !== perm);
+  cargarPermisosRolSeleccionado();
+}
+
+function guardarCambiosPermisos() {
+  bootstrap.Modal.getInstance(document.getElementById("modalGestionRoles")).hide();
+  alert("Cambios guardados en Gestión de roles (memoria local de sesión).");
+}
+
+function restaurarPermisosOriginales() {
+  if (!confirm("Restaurar permisos por defecto para todos los roles?")) return;
+  for (const k of Object.keys(ROLES_ORIGINALES)) {
+    ROLES_PERMISOS[k] = JSON.parse(JSON.stringify(ROLES_ORIGINALES[k]));
+  }
+  cargarPermisosRolSeleccionado();
+  alert("Permisos restaurados a valores por defecto.");
+}
+
+function verPermisosRol(rol) {
+  const permisos = ROLES_PERMISOS[rol] || [];
+  const cont = document.getElementById("permisosContenido");
+  cont.innerHTML = `<h6>Rol: ${rol}</h6>`;
+  if (permisos.length === 0) {
+    cont.innerHTML += `<p class="text-muted">Sin permisos asignados.</p>`;
+  } else {
+    const ul = document.createElement("ul");
+    permisos.forEach(p => {
+      const li = document.createElement("li");
+      li.textContent = p;
+      ul.appendChild(li);
+    });
+    cont.appendChild(ul);
+  }
+  bootstrap.Modal.getOrCreateInstance(document.getElementById("modalPermisos")).show();
+}
+
+function editarRol(nombre) {
+  usuarioSeleccionado = nombre;
+  const fila = document.querySelector(`[data-nombre="${nombre}"]`);
+  const rolActual = fila ? fila.querySelector(".rol").textContent : "Sin rol";
+  document.getElementById("usuarioEditar").textContent = `Usuario: ${nombre}`;
+  document.getElementById("rolEditado").value = rolActual || "Sin rol";
+  bootstrap.Modal.getOrCreateInstance(document.getElementById("modalEditarRol")).show();
+}
+
+function asignarRol(nombre) {
+  editarRol(nombre);
+}
+
+function actualizarRol() {
+  const nuevoRol = document.getElementById("rolEditado").value;
+  if (!usuarioSeleccionado) return;
+
+  const fila = document.querySelector(`[data-nombre="${usuarioSeleccionado}"]`);
+  if (!fila) return;
+
+  const celdaRol = fila.querySelector(".rol");
+  celdaRol.textContent = nuevoRol;
+  if (nuevoRol === "Sin rol") {
+    celdaRol.classList.add("text-muted");
+  } else {
+    celdaRol.classList.remove("text-muted");
+  }
+
+  const btn = fila.querySelector("button");
+  if (nuevoRol === "Sin rol") {
+    btn.textContent = "Asignar rol";
+    btn.classList.remove("btn-outline-warning");
+    btn.classList.add("btn-outline-success");
+    btn.setAttribute("onclick", `asignarRol('${usuarioSeleccionado}')`);
+  } else {
+    btn.textContent = "Editar rol";
+    btn.classList.remove("btn-outline-success");
+    btn.classList.add("btn-outline-warning");
+    btn.setAttribute("onclick", `editarRol('${usuarioSeleccionado}')`);
+  }
+
+  bootstrap.Modal.getInstance(document.getElementById("modalEditarRol")).hide();
+  usuarioSeleccionado = "";
+}
+
+function agregarUsuario() {
+  const nombre = document.getElementById("nuevoNombre").value.trim();
+  const rol = document.getElementById("nuevoRol").value || "Sin rol";
+  const err = document.getElementById("nuevoError");
+  err.classList.add("d-none");
+  err.textContent = "";
+
+  if (!nombre) {
+    err.textContent = "El nombre es obligatorio.";
+    err.classList.remove("d-none");
+    return;
+  }
+
+  const existente = document.querySelector(`[data-nombre="${nombre}"]`);
+  if (existente) {
+    existente.scrollIntoView({ behavior: "smooth", block: "center" });
+    existente.classList.add("border", "border-warning");
+    setTimeout(() => existente.classList.remove("border", "border-warning"), 1400);
+    err.textContent = "El usuario ya existe.";
+    err.classList.remove("d-none");
+    return;
+  }
+
+  const contenedor = document.getElementById("listaUsuarios");
+  const fila = document.createElement("div");
+  fila.className = "row mb-2 align-items-center role-row";
+  fila.setAttribute("data-nombre", nombre);
+  fila.innerHTML = `
+    <div class="col-4">${nombre}</div>
+    <div class="col-4 rol ${rol === 'Sin rol' ? 'text-muted' : ''}">${rol}</div>
+    <div class="col-4">
+      <button class="btn ${rol === 'Sin rol' ? 'btn-outline-success' : 'btn-outline-warning'} btn-sm" onclick="${rol === 'Sin rol' ? `asignarRol('${nombre}')` : `editarRol('${nombre}')`}">
+        ${rol === 'Sin rol' ? 'Asignar rol' : 'Editar rol'}
+      </button>
+    </div>
+  `;
+  contenedor.appendChild(fila);
+
+  bootstrap.Modal.getInstance(document.getElementById("modalNuevo")).hide();
+  document.getElementById("nuevoNombre").value = "";
+  document.getElementById("nuevoRol").value = "Sin rol";
+  filtrarUsuarios();
+}
+
+function filtrarUsuarios() {
+  const filtro = document.getElementById("buscador").value.trim().toLowerCase();
+  const filas = document.querySelectorAll("#listaUsuarios > .row");
+  filas.forEach(fila => {
+    const nombre = fila.getAttribute("data-nombre").toLowerCase();
+    if (!filtro || nombre.includes(filtro)) {
+      fila.style.display = "";
+    } else {
+      fila.style.display = "none";
+    }
+  });
+}
+
+function verPermisos(rol) {
+  verPermisosRol(rol);
+}
+
+function storeState() {
+  localStorage.setItem('roles_permisos', JSON.stringify(ROLES_PERMISOS));
+}
+
+function loadState() {
+  const raw = localStorage.getItem('roles_permisos');
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      for (const k of Object.keys(parsed)) {
+        ROLES_PERMISOS[k] = parsed[k];
+      }
+    } catch (e) {}
+  }
+}
+
+loadState();
+
+</script>
+</body>
+</html>
