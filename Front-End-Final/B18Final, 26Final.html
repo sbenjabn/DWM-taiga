@@ -8,11 +8,12 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <style>
     .muted-small { font-size:0.9rem; color:#6c757d; }
-    .status-badge { font-weight:600; padding:6px 10px; border-radius:12px; }
+    .status-badge { font-weight:600; padding:6px 10px; border-radius:12px; display:inline-block; }
     .status-pendiente { background:#fff3cd; color:#856404; }
     .status-preparacion { background:#cfe2ff; color:#084298; }
     .status-listo { background:#d1e7dd; color:#0f5132; }
-    .status-entregado { background:#e2e3e5; color:#212529; }
+    .status-encamino { background:#e7f5ff; color:#05508a; }
+    .status-entregado { background:#d1e7dd; color:#0f5132; }
     .status-anulada { background:#f8d7da; color:#842029; }
     .progress-steps { display:flex; gap:8px; align-items:center; margin-bottom:12px; }
     .step { flex:1; position:relative; text-align:center; font-size:0.85rem; color:#6c757d; }
@@ -25,7 +26,7 @@
     .progress-fill { height:8px; background:linear-gradient(90deg,#0d6efd,#198754); width:0%; transition:width 600ms ease; }
     .small-note { font-size:0.85rem; color:#6c757d; margin-top:8px; }
     .state-ts { font-size:0.85rem; color:#495057; margin-left:10px; }
-    .actions-row { display:flex; gap:8px; align-items:center; }
+    .estimate { font-weight:700; color:#0b5ed7; margin-left:8px; }
   </style>
 </head>
 <body class="bg-light">
@@ -38,32 +39,23 @@
             <div class="fw-semibold" id="pedidoNumero">Pedido —</div>
             <div class="muted-small" id="pedidoFecha">Fecha: —</div>
           </div>
-          <div id="badgeWrap" style="display:flex;align-items:center;"></div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div id="badgeWrap"></div>
+            <div class="muted-small">Estimado: <span id="pedidoEstimado" class="estimate">—</span></div>
+            <div id="controlsRight"></div>
+          </div>
         </div>
 
         <!-- Barra de pasos -->
         <div class="progress-steps" id="stepsContainer" aria-hidden="false">
-          <div class="step" data-step="pendiente">
-            <div class="dot"></div>
-            <div>Pendiente</div>
-          </div>
-          <div class="step" data-step="en_preparacion">
-            <div class="dot"></div>
-            <div>En preparación</div>
-          </div>
-          <div class="step" data-step="listo">
-            <div class="dot"></div>
-            <div>Listo</div>
-          </div>
-          <div class="step" data-step="entregado">
-            <div class="dot"></div>
-            <div>Entregado</div>
-          </div>
+          <div class="step" data-step="pendiente"><div class="dot"></div><div>Pendiente</div></div>
+          <div class="step" data-step="en_preparacion"><div class="dot"></div><div>En preparación</div></div>
+          <div class="step" data-step="listo"><div class="dot"></div><div>Listo</div></div>
+          <div class="step" data-step="en_camino"><div class="dot"></div><div>En camino</div></div>
+          <div class="step" data-step="entregado"><div class="dot"></div><div>Entregado</div></div>
         </div>
 
-        <div class="progress-track mb-2" aria-hidden="false">
-          <div id="progressFill" class="progress-fill" style="width:0%"></div>
-        </div>
+        <div class="progress-track mb-2"><div id="progressFill" class="progress-fill" style="width:0%"></div></div>
 
         <div class="d-flex align-items-center mb-3">
           <div id="estadoTexto" class="muted-small">Estado actual</div>
@@ -76,13 +68,11 @@
         </div>
 
         <div class="d-flex justify-content-between align-items-center">
-          <div class="actions-row">
+          <div>
             <button id="btnAnular" class="btn btn-outline-danger">Anular compra</button>
             <button id="btnContact" class="btn btn-outline-secondary ms-2" data-bs-toggle="modal" data-bs-target="#modalContact">Contactar encargado</button>
           </div>
-
-          <!-- Botón "Volver" en la misma línea, alineado a la derecha -->
-          <div class="actions-row">
+          <div class="d-flex gap-2">
             <button id="btnHome" class="btn btn-outline-primary" onclick="irAPrincipal()">Volver a la página principal</button>
           </div>
         </div>
@@ -117,21 +107,14 @@
   </div>
 
 <script>
-/*
-  B18Final actualizado:
-  - Botón "Volver a la página principal" en la misma fila a la derecha
-  - Barra de progreso y timestamps por estado
-  - Anulación permitida solo antes de 'en_preparacion'
-  - Auto-avance opcional para demo
-*/
-
 const CURRENT_KEY = "bb_current_order";
 const ORDERS_KEY = "bb_orders";
-const STATE_ORDER = ["pendiente", "en_preparacion", "listo", "entregado"];
-const AUTO_ADVANCE_MS = 8000; // set to null to disable auto progression
+const STATE_ORDER = ["pendiente","en_preparacion","listo","en_camino","entregado"];
+const AUTO_ADVANCE_MS = 9000;
 
 const pedidoNumeroEl = document.getElementById("pedidoNumero");
 const pedidoFechaEl = document.getElementById("pedidoFecha");
+const pedidoEstimadoEl = document.getElementById("pedidoEstimado");
 const badgeWrap = document.getElementById("badgeWrap");
 const estadoTexto = document.getElementById("estadoTexto");
 const estadoTimestamp = document.getElementById("estadoTimestamp");
@@ -142,22 +125,13 @@ const steps = Array.from(document.querySelectorAll(".step"));
 const msgArea = document.getElementById("msgArea");
 
 let autoTimer = null;
+let estimateTimer = null;
 
-/* Storage helpers */
-function loadCurrent() {
-  try { return JSON.parse(localStorage.getItem(CURRENT_KEY) || "null"); } catch { return null; }
-}
+function loadCurrent() { try { return JSON.parse(localStorage.getItem(CURRENT_KEY) || "null"); } catch { return null; } }
 function saveCurrent(obj) { localStorage.setItem(CURRENT_KEY, JSON.stringify(obj)); }
-function pushOrderToHistory(order) {
-  try {
-    const arr = JSON.parse(localStorage.getItem(ORDERS_KEY) || "[]");
-    arr.unshift(order);
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(arr));
-  } catch(e) { console.error(e); }
-}
-function removeCurrent() { localStorage.removeItem(CURRENT_KEY); }
+function pushOrderToHistory(order) { try { const arr = JSON.parse(localStorage.getItem(ORDERS_KEY) || "[]"); arr.unshift(order); localStorage.setItem(ORDERS_KEY, JSON.stringify(arr)); } catch(e){ console.error(e); } }
+function removeCurrent(){ localStorage.removeItem(CURRENT_KEY); }
 
-/* Seed example if missing */
 function seedExampleOrder() {
   const now = Date.now();
   const example = {
@@ -166,21 +140,22 @@ function seedExampleOrder() {
     estado: "pendiente",
     productos: [
       { nombre: "Hamburguesa queso", cantidad: 1, precio: 5990 },
-      { nombre: "Papas medianas", cantidad: 1, price: 1990 }
+      { nombre: "Papas medianas", cantidad: 1, precio: 1990 }
     ],
-    creadoEn: now
+    creadoEn: now,
+    estimateMin: 25,
+    remainingSec: 25 * 60,
+    timestamps: { pendiente: now }
   };
   saveCurrent(example);
   return example;
 }
 
-/* Utility */
 function escapeHtml(s) { return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
 function nowLocaleString(ts=Date.now()){ return new Date(ts).toLocaleString(); }
 function indexOfState(s){ return STATE_ORDER.indexOf(s); }
 function clamp(n,min,max){ return Math.max(min, Math.min(max,n)); }
 
-/* Render */
 function renderPedido() {
   let order = loadCurrent();
   if (!order) order = seedExampleOrder();
@@ -190,7 +165,9 @@ function renderPedido() {
   renderBadge(order.estado || 'pendiente');
 
   estadoTexto.textContent = estadoDescripcion(order.estado || 'pendiente');
-  estadoTimestamp.textContent = obtenerTimestampEstado(order, order.estado) ? `Última actualización: ${nowLocaleString(obtenerTimestampEstado(order, order.estado))}` : '';
+  const ts = obtenerTimestampEstado(order, order.estado);
+  estadoTimestamp.textContent = ts ? `Última actualización: ${nowLocaleString(ts)}` : '';
+
   resumenItems.innerHTML = (order.productos || []).map(p => `${escapeHtml(p.nombre)} x${p.cantidad}`).join(' · ') || 'Sin items';
 
   updateStepsAndProgress(order.estado || 'pendiente');
@@ -198,9 +175,10 @@ function renderPedido() {
   btnAnular.disabled = !(order.estado === 'pendiente');
 
   setupAutoAdvance(order.estado || 'pendiente');
+
+  setupEstimateTimer(order);
 }
 
-/* Badge rendering */
 function renderBadge(estado) {
   badgeWrap.innerHTML = "";
   const span = document.createElement("span");
@@ -208,42 +186,43 @@ function renderBadge(estado) {
   if (estado === 'pendiente') span.classList.add('status-pendiente');
   else if (estado === 'en_preparacion') span.classList.add('status-preparacion');
   else if (estado === 'listo') span.classList.add('status-listo');
+  else if (estado === 'en_camino') span.classList.add('status-encamino');
   else if (estado === 'entregado') span.classList.add('status-entregado');
   else if (estado === 'anulada') span.classList.add('status-anulada');
-  span.textContent = estado.replaceAll('_',' ').toUpperCase();
+  span.textContent = (estado || '').replaceAll('_',' ').replace(/\b\w/g,l=>l.toUpperCase());
   badgeWrap.appendChild(span);
 }
 
-/* Human readable status description */
 function estadoDescripcion(estado) {
   switch (estado) {
     case 'pendiente': return 'Tu pedido está pendiente y puede ser anulado si lo deseas.';
     case 'en_preparacion': return 'Tu pedido está en preparación; ya no puede ser anulado desde el cajero.';
     case 'listo': return 'Tu pedido está listo para entrega o retiro.';
+    case 'en_camino': return 'Tu pedido está en camino; el repartidor lo está entregando.';
     case 'entregado': return 'Tu pedido ha sido entregado.';
     case 'anulada': return 'Este pedido ha sido anulado.';
     default: return 'Estado desconocido.';
   }
 }
 
-/* Return timestamp associated to a given state if present */
 function obtenerTimestampEstado(order, estado) {
   if (!order) return null;
+  const ts = order.timestamps || {};
   switch (estado) {
-    case 'pendiente': return order.creadoEn || null;
-    case 'en_preparacion': return order.preparacionAt || order.modifiedAt || null;
-    case 'listo': return order.listoEn || order.modifiedAt || null;
-    case 'entregado': return order.entregadoEn || order.modifiedAt || null;
-    case 'anulada': return order.anuladaEn || order.modifiedAt || null;
-    default: return order.modifiedAt || null;
+    case 'pendiente': return ts.pendiente || order.creadoEn || null;
+    case 'en_preparacion': return ts.en_preparacion || ts.modifiedAt || null;
+    case 'listo': return ts.listo || ts.modifiedAt || null;
+    case 'en_camino': return ts.en_camino || ts.modifiedAt || null;
+    case 'entregado': return ts.entregado || ts.modifiedAt || null;
+    case 'anulada': return ts.anulada || ts.modifiedAt || null;
+    default: return ts.modifiedAt || null;
   }
 }
 
-/* Update step visuals and progress fill */
 function updateStepsAndProgress(currentState) {
   const idx = indexOfState(currentState);
   const total = STATE_ORDER.length - 1;
-  steps.forEach((el, i) => {
+  steps.forEach((el,i) => {
     el.classList.remove('active','completed');
     if (i < idx) el.classList.add('completed');
     else if (i === idx) el.classList.add('active');
@@ -252,7 +231,6 @@ function updateStepsAndProgress(currentState) {
   progressFill.style.width = percent + '%';
 }
 
-/* Advance state by one step (internal use for auto-advance) */
 function advanceState() {
   const order = loadCurrent();
   if (!order) return;
@@ -261,9 +239,15 @@ function advanceState() {
   const nextIdx = clamp(currentIdx + 1, 0, STATE_ORDER.length - 1);
   const nextState = STATE_ORDER[nextIdx];
 
-  if (nextState === 'en_preparacion') order.preparacionAt = Date.now();
-  if (nextState === 'listo') order.listoEn = Date.now();
-  if (nextState === 'entregado') order.entregadoEn = Date.now();
+  if (!order.timestamps) order.timestamps = {};
+  if (nextState === 'en_preparacion') order.timestamps.en_preparacion = Date.now();
+  if (nextState === 'listo') order.timestamps.listo = Date.now();
+  if (nextState === 'en_camino') order.timestamps.en_camino = Date.now();
+  if (nextState === 'entregado') order.timestamps.entregado = Date.now();
+
+  if (typeof order.remainingSec !== 'number') order.remainingSec = (order.estimateMin || 20) * 60;
+  const reduceMap = { 'en_preparacion': 8*60, 'listo': 5*60, 'en_camino': 7*60, 'entregado': 0 };
+  order.remainingSec = Math.max(0, order.remainingSec - (reduceMap[nextState] || 0));
 
   order.estado = nextState;
   order.modifiedAt = Date.now();
@@ -271,37 +255,66 @@ function advanceState() {
   renderPedido();
 
   if (nextState === 'entregado') {
-    setTimeout(() => {
-      order.entregadoEn = order.entregadoEn || Date.now();
+    setTimeout(()=> {
       pushOrderToHistory(order);
       removeCurrent();
       showMessage('Pedido entregado y movido al historial', 'success');
       renderPedido();
-    }, 800);
+    },800);
   }
 }
 
-/* Auto advance setup */
 function setupAutoAdvance(currentState) {
   if (!AUTO_ADVANCE_MS) return;
-  if (currentState === 'entregado' || currentState === 'anulada') {
-    clearAutoTimer();
-    return;
-  }
+  if (currentState === 'entregado' || currentState === 'anulada') { clearAutoTimer(); return; }
   clearAutoTimer();
-  autoTimer = setInterval(() => {
+  autoTimer = setInterval(()=> {
     const o = loadCurrent();
     if (!o) { clearAutoTimer(); return; }
     if (o.estado === 'entregado' || o.estado === 'anulada') { clearAutoTimer(); return; }
     advanceState();
   }, AUTO_ADVANCE_MS);
 }
-function clearAutoTimer() {
-  if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+function clearAutoTimer(){ if (autoTimer){ clearInterval(autoTimer); autoTimer = null; } }
+
+function setupEstimateTimer(order) {
+  clearEstimateTimer();
+  if (!order) return;
+  if (typeof order.remainingSec !== 'number') {
+    order.remainingSec = (order.estimateMin || 20) * 60;
+    saveCurrent(order);
+  }
+  updateEstimateDisplay(order);
+  estimateTimer = setInterval(()=> {
+    const o = loadCurrent();
+    if (!o) { clearEstimateTimer(); pedidoEstimadoEl.textContent = '—'; return; }
+    if (o.estado === 'entregado' || o.estado === 'anulada') {
+      pedidoEstimadoEl.textContent = '—';
+      clearEstimateTimer();
+      return;
+    }
+    if (typeof o.remainingSec === 'number' && o.remainingSec > 0) {
+      o.remainingSec = Math.max(0, o.remainingSec - 1);
+      saveCurrent(o);
+    }
+    updateEstimateDisplay(o);
+  }, 1000);
+}
+function clearEstimateTimer(){ if (estimateTimer){ clearInterval(estimateTimer); estimateTimer = null; } }
+
+function updateEstimateDisplay(order) {
+  if (!order) { pedidoEstimadoEl.textContent = '—'; return; }
+  if (order.estado === 'entregado' || order.estado === 'anulada') { pedidoEstimadoEl.textContent = '—'; return; }
+  const sec = typeof order.remainingSec === 'number' ? order.remainingSec : (order.estimateMin || 20) * 60;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  const countdown = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  const etaDate = new Date(Date.now() + sec);
+  const etaStr = etaDate.toLocaleTimeString();
+  pedidoEstimadoEl.textContent = `${countdown} (aprox. ${etaStr})`;
 }
 
-/* Anular compra */
-btnAnular.addEventListener('click', () => {
+btnAnular.addEventListener('click', ()=> {
   const order = loadCurrent();
   if (!order) { showMessage('No existe un pedido activo', 'danger'); return; }
   if (order.estado !== 'pendiente') {
@@ -312,14 +325,14 @@ btnAnular.addEventListener('click', () => {
   }
   if (!confirm('¿Confirmas anular la compra? No se realizará ningún cobro.')) return;
   order.estado = 'anulada';
-  order.anuladaEn = Date.now();
+  if (!order.timestamps) order.timestamps = {};
+  order.timestamps.anulada = Date.now();
   pushOrderToHistory(order);
   removeCurrent();
   showMessage('Compra anulada exitosamente', 'success');
   renderPedido();
 });
 
-/* Contact modal send */
 function enviarContacto() {
   const texto = document.getElementById('contactMsg').value.trim();
   bootstrap.Modal.getInstance(document.getElementById('modalContact')).hide();
@@ -332,22 +345,16 @@ function enviarContacto() {
   showMessage('Solicitud enviada al encargado. Te contactarán si es necesario.', 'info');
 }
 
-/* Ir a página principal (ajusta la ruta según tu proyecto) */
-function irAPrincipal() {
-  // Cambia la ruta si tu página principal tiene otro nombre
-  window.location.href = 'B05Final.html';
-}
+function irAPrincipal(){ window.location.href = 'B05Final.html'; }
 
-/* Messages */
 let _msgTimer = null;
 function showMessage(text, type='info') {
   clearTimeout(_msgTimer);
   const area = document.getElementById("msgArea");
-  area.innerHTML = `<div class="alert alert-${type}">${text}</div>`;
+  area.innerHTML = `<div class="alert alert-${type}">${escapeHtml(text)}</div>`;
   _msgTimer = setTimeout(()=> area.innerHTML = "", 4500);
 }
 
-/* Init */
 (function init(){
   renderPedido();
 })();
