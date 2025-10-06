@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Comprobante de Pedido - Big Bite</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .muted-small { font-size:0.9rem; color:#6c757d; }
+    .line { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #eee; }
+    .total-line { font-weight:700; font-size:1.05rem; }
+    @media print {
+      .no-print { display:none !important; }
+      .container { margin:0; padding:0; }
+    }
+  </style>
+</head>
+<body class="bg-light">
+  <div class="container mt-4 mb-4">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <div>
+            <h5 id="comprobanteNumero">Comprobante —</h5>
+            <div id="comprobanteCliente" class="muted-small"></div>
+          </div>
+          <div class="text-end">
+            <div id="comprobanteFecha" class="muted-small"></div>
+            <div id="comprobanteMedio" class="muted-small"></div>
+          </div>
+        </div>
+
+        <div class="mb-2">
+          <div class="line fw-semibold">
+            <div>Producto</div>
+            <div class="text-end">Costo</div>
+          </div>
+        </div>
+
+        <div id="productosContainer"></div>
+
+        <div class="mt-3 mb-2">
+          <div class="line total-line">
+            <div>Total</div>
+            <div id="totalMonto" class="text-end">$ 0</div>
+          </div>
+        </div>
+
+        <div class="muted-small mb-3" id="comprobanteNotas"></div>
+
+        <div class="d-flex gap-2 no-print">
+          <button class="btn btn-outline-secondary" onclick="history.back()">Volver</button>
+          <button class="btn btn-outline-primary" onclick="guardarComprobante()">Guardar comprobante</button>
+          <button class="btn btn-outline-success" onclick="enviarPorCorreo()">Enviar por correo</button>
+          <button class="btn btn-primary" onclick="imprimirComprobante()">Imprimir / Descargar</button>
+        </div>
+
+        <div id="msgArea" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+
+const CURRENT_ORDER_KEY = "bb_current_order";
+const RECEIPTS_KEY = "bb_receipts";
+
+function loadCurrentOrder() {
+  try {
+    const raw = localStorage.getItem(CURRENT_ORDER_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch { return null; }
+}
+function saveReceipt(rec) {
+  try {
+    const arr = JSON.parse(localStorage.getItem(RECEIPTS_KEY) || "[]");
+    arr.unshift(rec);
+    localStorage.setItem(RECEIPTS_KEY, JSON.stringify(arr));
+  } catch(e){ console.error(e); }
+}
+function formatCurrency(n) { return `$ ${Number(n||0).toLocaleString()}`; }
+function escapeHtml(s){ return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+function nowLocaleString(ts = Date.now()) { return new Date(ts).toLocaleString(); }
+
+function seedExampleIfMissing() {
+  if (loadCurrentOrder()) return;
+  const now = Date.now();
+  const example = {
+    id: "O-" + Math.random().toString(36).slice(2,8).toUpperCase(),
+    tipo: "virtual",
+    cliente: { nombre: "Sra. Prueba", email: "cliente@ejemplo.com" },
+    productos: [
+      { nombre: "Hamburguesa queso", precio: 5990, cantidad: 1 },
+      { nombre: "Papas medianas", precio: 1990, cantidad: 1 },
+      { nombre: "Coca Cola", precio: 1200, cantidad: 1 }
+    ],
+    total: 5990 + 1990 + 1200,
+    medioPago: "Tarjeta",
+    fecha: now
+  };
+  localStorage.setItem(CURRENT_ORDER_KEY, JSON.stringify(example));
+  return example;
+}
+
+function renderComprobante() {
+  let order = loadCurrentOrder();
+  if (!order) order = seedExampleIfMissing();
+
+  document.getElementById("comprobanteNumero").textContent = `Comprobante ${order.id || '—'}`;
+  document.getElementById("comprobanteCliente").textContent = order.cliente?.nombre ? `${order.cliente.nombre} · ${order.cliente.email || ''}` : '';
+  document.getElementById("comprobanteFecha").textContent = order.fecha ? nowLocaleString(order.fecha) : nowLocaleString();
+  document.getElementById("comprobanteMedio").textContent = `Medio de pago: ${order.medioPago || '—'}`;
+  document.getElementById("comprobanteNotas").textContent = order.tipo ? `Tipo de pedido: ${order.tipo}` : '';
+
+  const container = document.getElementById("productosContainer");
+  container.innerHTML = "";
+  let total = 0;
+  (order.productos||[]).forEach(p => {
+    const subtotal = Number(p.precio||0) * (p.cantidad||1);
+    total += subtotal;
+    const row = document.createElement("div");
+    row.className = "line";
+    const left = document.createElement("div");
+    left.innerHTML = `<div>${escapeHtml(p.nombre)} ${p.modificadores && p.modificadores.length ? `<div class="muted-small">(${escapeHtml(p.modificadores.join(', '))})</div>` : ''} <div class="muted-small">x${p.cantidad||1}</div></div>`;
+    const right = document.createElement("div");
+    right.className = "text-end";
+    right.textContent = formatCurrency(subtotal);
+    row.appendChild(left);
+    row.appendChild(right);
+    container.appendChild(row);
+  });
+  const totalToShow = order.total || total;
+  document.getElementById("totalMonto").textContent = formatCurrency(totalToShow);
+}
+
+function guardarComprobante() {
+  const order = loadCurrentOrder();
+  if (!order) return showMessage("No hay pedido para guardar", "danger");
+  const receipt = {
+    receiptId: "R-" + Math.random().toString(36).slice(2,9).toUpperCase(),
+    orderId: order.id,
+    cliente: order.cliente || {},
+    productos: order.productos || [],
+    total: order.total || 0,
+    medioPago: order.medioPago || '',
+    fecha: Date.now()
+  };
+  saveReceipt(receipt);
+  showMessage("Comprobante guardado correctamente", "success");
+}
+function imprimirComprobante() {
+  window.print();
+}
+
+function enviarPorCorreo() {
+  const order = loadCurrentOrder();
+  if (!order) return showMessage("No hay pedido para enviar", "danger");
+  const to = order.cliente?.email || "";
+  const subject = encodeURIComponent(`Comprobante de pedido ${order.id || ''} - Big Bite`);
+  let body = `Comprobante de pedido ${order.id || ''}%0D%0AFecha: ${nowLocaleString(order.fecha || Date.now())}%0D%0A%0D%0AProductos:%0D%0A`;
+  (order.productos || []).forEach(p => {
+    body += `- ${p.nombre} x${p.cantidad||1}: ${formatCurrency(Number(p.precio||0) * (p.cantidad||1))}%0D%0A`;
+  });
+  body += `%0D%0ATotal: ${formatCurrency(order.total || 0)}%0D%0AMedio de pago: ${order.medioPago || '—'}%0D%0A%0D%0AGracias por su compra.`;
+  const mailto = `mailto:${encodeURIComponent(to)}?subject=${subject}&body=${body}`;
+  window.location.href = mailto;
+  showMessage("Abriendo cliente de correo (simulado)", "info");
+}
+
+let _msgTimer = null;
+function showMessage(text, type='info') {
+  clearTimeout(_msgTimer);
+  const area = document.getElementById("msgArea");
+  area.innerHTML = `<div class="alert alert-${type}">${text}</div>`;
+  _msgTimer = setTimeout(()=> area.innerHTML = "", 3500);
+}
+
+(function init(){
+  renderComprobante();
+})();
+</script>
+</body>
+</html>
