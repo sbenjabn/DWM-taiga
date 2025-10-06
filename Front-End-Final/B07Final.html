@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestión de Clientes - Big Bite</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .client-row { cursor: pointer; }
+    .client-row:hover { background:#f8f9fa; }
+    .badge-small { font-size:0.75rem; }
+    .muted-small { font-size:0.9rem; color:#6c757d; }
+    .no-data { color:#6c757d; padding:18px 0; }
+    .delete-btn { min-width:36px; }
+  </style>
+</head>
+<body class="bg-light">
+
+<div class="container mt-4">
+  <!-- Búsqueda y filtros -->
+  <div class="row mb-3 align-items-center">
+    <div class="col-12 col-md-4">
+      <label class="form-label">Buscar cliente</label>
+      <input id="buscarCliente" class="form-control" placeholder="Ej: Camila Rojas" oninput="renderClientes()" />
+    </div>
+
+    <div class="col-12 col-md-5">
+      <label class="form-label d-block">Filtros</label>
+      <div class="d-flex gap-2">
+        <select id="filtroFrecuencia" class="form-select" onchange="renderClientes()">
+          <option value="">Todas las frecuencias</option>
+          <option value=">5">Frecuencia: más de 5 pedidos/mes</option>
+        </select>
+
+        <select id="filtroInteraccion" class="form-select" onchange="renderClientes()">
+          <option value="">Todas las interacciones</option>
+          <option value="reclamos">Reclamos registrados</option>
+        </select>
+
+        <button class="btn btn-outline-secondary" onclick="limpiarFiltros()">Limpiar</button>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-3 text-md-end mt-2 mt-md-0">
+      <label class="form-label d-block invisible">esp</label>
+      <button class="btn btn-primary" onclick="abrirPerfilNuevo()">+ Nuevo cliente</button>
+    </div>
+  </div>
+
+  <!-- Contenido: Lista + Perfil -->
+  <div class="row">
+    <!-- Lista de clientes -->
+    <div class="col-12 col-md-5 mb-3">
+      <div class="card">
+        <div class="card-body">
+          <h6 class="card-title">Lista de clientes</h6>
+          <div id="listaClientes" class="list-group">
+            <!-- items inyectados -->
+          </div>
+          <div id="noClientes" class="no-data d-none">No hay clientes que coincidan.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Perfil e historial -->
+    <div class="col-12 col-md-7 mb-3">
+      <div class="card">
+        <div class="card-body">
+          <div id="perfilArea">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <h6 id="perfilNombre" class="mb-0">Selecciona un cliente</h6>
+                <div id="perfilContacto" class="muted-small mb-3">Aquí verás el perfil y el historial.</div>
+              </div>
+              <div id="perfilActions" class="d-none">
+                <button class="btn btn-danger btn-sm me-2" onclick="confirmarEliminarSeleccionado()">Eliminar</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="editarClienteSeleccionado()">Editar</button>
+              </div>
+            </div>
+
+            <div id="perfilDetalle" class="d-none">
+              <div class="mb-2"><strong>Contacto:</strong> <span id="perfilEmail"></span> · <span id="perfilTelefono"></span></div>
+              <div class="mb-2"><strong>Total pedidos últimos 30 días:</strong> <span id="perfilPedidos"></span></div>
+              <div class="mb-3"><strong>Reclamos:</strong> <span id="perfilReclamosCount"></span></div>
+
+              <hr />
+
+              <h6>Historial de interacciones y pedidos</h6>
+              <div id="historialList" class="mt-2">
+                <!-- filas historial -->
+              </div>
+
+              <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-outline-primary btn-sm" onclick="exportarHistorial()">Exportar</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="limpiarHistorialVista()">Limpiar vista</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Mensaje para filtros -->
+          <div id="infoFiltro" class="mt-3 muted-small d-none"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nuevo / Editar Cliente -->
+<div class="modal fade" id="modalCliente" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 id="modalTitle" class="modal-title">Nuevo cliente</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">Nombre</label>
+        <input id="modalNombre" class="form-control mb-2" />
+        <label class="form-label">Email</label>
+        <input id="modalEmail" type="email" class="form-control mb-2" />
+        <label class="form-label">Teléfono</label>
+        <input id="modalTelefono" class="form-control mb-2" />
+        <div id="modalError" class="text-danger d-none small mt-2"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button class="btn btn-primary" id="modalGuardarBtn" onclick="guardarClienteModal()">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const STORAGE_KEY = "bb_gestion_clientes_v1";
+
+function generatePedidos(n) {
+  const arr = [];
+  const now = Date.now();
+  for (let i = 0; i < n; i++) {
+    const daysAgo = Math.floor(Math.random() * 60);
+    arr.push(now - daysAgo * 24 * 60 * 60 * 1000 - Math.floor(Math.random()*86400000));
+  }
+  return arr.sort((a,b)=>b-a);
+}
+
+const SAMPLE = [
+  { id: "c-1", nombre: "Camila Rojas", email: "camila.rojas@ejemplo.com", telefono: "+56912345678", pedidos: generatePedidos(8), reclamos: [{ fecha: Date.now()-1000*60*60*24*10, motivo: "Producto frío", estado: "Resuelto" }] },
+  { id: "c-2", nombre: "Luis Ramirez", email: "luis.ramirez@ejemplo.com", telefono: "+56987654321", pedidos: generatePedidos(3), reclamos: [] },
+  { id: "c-3", nombre: "Cliente Frecuente", email: "frec@ejemplo.com", telefono: "+56911111111", pedidos: generatePedidos(12), reclamos: [] }
+];
+
+let clientes = [];
+let seleccionadoId = null;
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) { clientes = SAMPLE; saveState(); } else clientes = JSON.parse(raw);
+  } catch { clientes = SAMPLE; }
+}
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(clientes)); }
+
+function renderClientes() {
+  const q = document.getElementById("buscarCliente").value.trim().toLowerCase();
+  const filtroFreq = document.getElementById("filtroFrecuencia").value;
+  const filtroInt = document.getElementById("filtroInteraccion").value;
+
+  const cont = document.getElementById("listaClientes");
+  cont.innerHTML = "";
+
+  const list = clientes.filter(c => {
+    if (q && !c.nombre.toLowerCase().includes(q)) return false;
+    if (filtroFreq === ">5") {
+      const pedidos30 = c.pedidos.filter(ts => ts > Date.now() - 30*24*60*60*1000).length;
+      if (pedidos30 <= 5) return false;
+    }
+    if (filtroInt === "reclamos") {
+      if (!c.reclamos || c.reclamos.length === 0) return false;
+    }
+    return true;
+  });
+
+  if (list.length === 0) document.getElementById("noClientes").classList.remove("d-none");
+  else document.getElementById("noClientes").classList.add("d-none");
+
+  list.forEach(c => {
+    const pedidos30 = c.pedidos.filter(ts => ts > Date.now() - 30*24*60*60*1000).length;
+    const hasReclamos = (c.reclamos && c.reclamos.length > 0);
+
+    const item = document.createElement("div");
+    item.className = "list-group-item d-flex justify-content-between align-items-start";
+    item.innerHTML = `
+      <div class="client-row" style="flex:1" onclick="seleccionarCliente('${c.id}')">
+        <div class="fw-semibold">${c.nombre}</div>
+        <div class="muted-small">${c.email} · ${c.telefono}</div>
+      </div>
+      <div class="text-end d-flex align-items-center gap-2">
+        <div>
+          <span class="badge bg-primary badge-small">${pedidos30} pedidos 30d</span>
+          ${hasReclamos ? `<span class="badge bg-danger badge-small ms-1">Reclamos: ${c.reclamos.length}</span>` : ''}
+        </div>
+        <button class="btn btn-sm btn-outline-danger delete-btn" title="Eliminar cliente" onclick="eliminarClientePorId(event,'${c.id}')">✖</button>
+      </div>
+    `;
+    cont.appendChild(item);
+  });
+
+  actualizarInfoFiltro();
+}
+
+function seleccionarCliente(id) {
+  seleccionadoId = id;
+  const cliente = clientes.find(c => c.id === id);
+  if (!cliente) return;
+  document.getElementById("perfilNombre").textContent = cliente.nombre;
+  document.getElementById("perfilContacto").textContent = `${cliente.email} · ${cliente.telefono}`;
+  document.getElementById("perfilDetalle").classList.remove("d-none");
+  document.getElementById("perfilActions").classList.remove("d-none");
+
+  const pedidos30 = cliente.pedidos.filter(ts => ts > Date.now() - 30*24*60*60*1000);
+  document.getElementById("perfilPedidos").textContent = pedidos30.length;
+  document.getElementById("perfilReclamosCount").textContent = (cliente.reclamos || []).length;
+
+  const events = [];
+  cliente.pedidos.forEach(ts => events.push({ tipo: "pedido", ts }));
+  (cliente.reclamos || []).forEach(r => events.push({ tipo: "reclamo", ts: r.fecha, detalle: r }));
+  events.sort((a,b) => b.ts - a.ts);
+
+  const hist = document.getElementById("historialList");
+  hist.innerHTML = "";
+  if (events.length === 0) hist.innerHTML = `<div class="no-data">Sin historial para este cliente.</div>`;
+  else events.forEach(ev => {
+    const d = new Date(ev.ts);
+    const fecha = d.toLocaleDateString();
+    const hora = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const row = document.createElement("div");
+    row.className = "border-bottom py-2";
+    if (ev.tipo === "pedido") {
+      row.innerHTML = `<div><strong>Pedido</strong> · ${fecha} ${hora}</div><div class="muted-small">Estado: Entregado / ID simulado</div>`;
+    } else {
+      row.innerHTML = `<div><strong>Reclamo</strong> · ${fecha} ${hora}</div><div class="muted-small">Motivo: ${ev.detalle.motivo} · Estado: ${ev.detalle.estado}</div>`;
+    }
+    hist.appendChild(row);
+  });
+}
+
+function eliminarClientePorId(event, id) {
+  event.stopPropagation();
+  const cliente = clientes.find(c => c.id === id);
+  if (!cliente) return;
+  if (!confirm(`Eliminar cliente "${cliente.nombre}"? Esta acción no se puede deshacer.`)) return;
+  clientes = clientes.filter(c => c.id !== id);
+  saveState();
+  if (seleccionadoId === id) limpiarHistorialVista();
+  renderClientes();
+}
+
+function confirmarEliminarSeleccionado() {
+  if (!seleccionadoId) return alert("No hay cliente seleccionado.");
+  const cliente = clientes.find(c => c.id === seleccionadoId);
+  if (!cliente) return;
+  if (!confirm(`Eliminar cliente "${cliente.nombre}" seleccionado? Esta acción no se puede deshacer.`)) return;
+  clientes = clientes.filter(c => c.id !== seleccionadoId);
+  saveState();
+  limpiarHistorialVista();
+  renderClientes();
+}
+
+function editarClienteSeleccionado() {
+  if (!seleccionadoId) return alert("No hay cliente seleccionado.");
+  const cliente = clientes.find(c => c.id === seleccionadoId);
+  if (!cliente) return;
+  document.getElementById("modalTitle").textContent = "Editar cliente";
+  document.getElementById("modalNombre").value = cliente.nombre;
+  document.getElementById("modalEmail").value = cliente.email;
+  document.getElementById("modalTelefono").value = cliente.telefono || "";
+  document.getElementById("modalError").classList.add("d-none");
+  const modal = new bootstrap.Modal(document.getElementById("modalCliente"));
+  modal.show();
+  document.getElementById("modalGuardarBtn").onclick = function() { guardarClienteModal(true); };
+}
+
+function abrirPerfilNuevo() {
+  document.getElementById("modalTitle").textContent = "Nuevo cliente";
+  document.getElementById("modalNombre").value = "";
+  document.getElementById("modalEmail").value = "";
+  document.getElementById("modalTelefono").value = "";
+  document.getElementById("modalError").classList.add("d-none");
+  const modal = new bootstrap.Modal(document.getElementById("modalCliente"));
+  modal.show();
+  document.getElementById("modalGuardarBtn").onclick = function() { guardarClienteModal(false); };
+}
+
+function guardarClienteModal(isEdit = false) {
+  const nombre = document.getElementById("modalNombre").value.trim();
+  const email = document.getElementById("modalEmail").value.trim();
+  const telefono = document.getElementById("modalTelefono").value.trim();
+  const err = document.getElementById("modalError");
+  err.classList.add("d-none");
+  if (!nombre || !email) {
+    err.textContent = "Nombre y email son obligatorios.";
+    err.classList.remove("d-none");
+    return;
+  }
+  if (isEdit && seleccionadoId) {
+    const idx = clientes.findIndex(c => c.id === seleccionadoId);
+    if (idx !== -1) {
+      clientes[idx].nombre = nombre;
+      clientes[idx].email = email;
+      clientes[idx].telefono = telefono;
+      saveState();
+      renderClientes();
+      seleccionarCliente(clientes[idx].id);
+      bootstrap.Modal.getInstance(document.getElementById("modalCliente")).hide();
+      return;
+    }
+  }
+  const nuevo = { id: "c-" + Math.random().toString(36).slice(2,8), nombre, email, telefono, pedidos: [], reclamos: [] };
+  clientes.push(nuevo);
+  saveState();
+  renderClientes();
+  bootstrap.Modal.getInstance(document.getElementById("modalCliente")).hide();
+}
+
+function exportarHistorial() {
+  if (!seleccionadoId) return alert("Selecciona un cliente primero.");
+  const cliente = clientes.find(c => c.id === seleccionadoId);
+  const data = { cliente: { nombre: cliente.nombre, email: cliente.email, telefono: cliente.telefono }, pedidos: cliente.pedidos, reclamos: cliente.reclamos };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${cliente.nombre.replace(/\s+/g,'_')}_historial.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function limpiarFiltros() {
+  document.getElementById("buscarCliente").value = "";
+  document.getElementById("filtroFrecuencia").value = "";
+  document.getElementById("filtroInteraccion").value = "";
+  renderClientes();
+}
+
+function actualizarInfoFiltro() {
+  const fFreq = document.getElementById("filtroFrecuencia").value;
+  const fInt = document.getElementById("filtroInteraccion").value;
+  const info = [];
+  if (fFreq === ">5") info.push("Frecuencia: más de 5 pedidos/mes");
+  if (fInt === "reclamos") info.push("Reclamos registrados");
+  const infoEl = document.getElementById("infoFiltro");
+  if (info.length) { infoEl.textContent = "Filtros activos: " + info.join(" · "); infoEl.classList.remove("d-none"); }
+  else infoEl.classList.add("d-none");
+}
+
+function limpiarHistorialVista() {
+  document.getElementById("perfilDetalle").classList.add("d-none");
+  document.getElementById("perfilActions").classList.add("d-none");
+  document.getElementById("perfilNombre").textContent = "Selecciona un cliente";
+  document.getElementById("perfilContacto").textContent = "Aquí verás el perfil y el historial.";
+  seleccionadoId = null;
+}
+
+loadState();
+renderClientes();
+
+</script>
+</body>
+</html>
