@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>B17 Integración automática de ventas - Big Bite</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .muted-small { font-size:0.9rem; color:#6c757d; }
+    .line { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #eee; }
+    .qty { font-weight:700; }
+    .btn-sm-compact { padding:4px 8px; font-size:0.85rem; }
+  </style>
+</head>
+<body class="bg-light">
+  <div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h4 class="mb-0">Integración automática de ventas</h4>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h6>Productos e inventario</h6>
+        <div id="productosList" class="mb-3"></div>
+
+        <h6 class="mt-3">Crear pedido rápido</h6>
+        <div class="row g-2 align-items-end mb-2">
+          <div class="col-6">
+            <label class="form-label small mb-0">Producto</label>
+            <select id="selProducto" class="form-select"></select>
+          </div>
+          <div class="col-3">
+            <label class="form-label small mb-0">Cantidad</label>
+            <input id="cantidadPedido" type="number" class="form-control" min="1" value="1" />
+          </div>
+          <div class="col-3">
+            <button class="btn btn-primary w-100" onclick="agregarAlCarrito()">Agregar al carrito</button>
+          </div>
+        </div>
+
+        <h6 class="mt-3">Carrito</h6>
+        <div id="carritoList" class="mb-2"></div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-outline-secondary" onclick="limpiarCarrito()">Limpiar carrito</button>
+          <button class="btn btn-success" onclick="confirmarVentaCarrito()">Confirmar venta</button>
+        </div>
+
+        <div id="msgArea" class="mt-3"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h6>Historial de órdenes</h6>
+        <div id="ordersList"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+
+const PRODUCTS_STOCK_KEY = "bb_products_stock_v1";
+const ORDERS_KEY = "bb_orders_v1";
+
+function seedProductsIfNeeded() {
+  try {
+    const raw = localStorage.getItem(PRODUCTS_STOCK_KEY);
+    if (raw) return;
+    const now = Date.now();
+    const products = [
+      { id: "prod-coca-500", nombre: "Coca Cola 1/2 litro", precio: 1200, stock: 10, unidad: "unidades", modifiedAt: now },
+      { id: "prod-helado-vain", nombre: "Helado de vainilla San Francisco", precio: 2500, stock: 0, unidad: "unidades", modifiedAt: now }
+    ];
+    localStorage.setItem(PRODUCTS_STOCK_KEY, JSON.stringify(products));
+  } catch(e) { console.error(e); }
+}
+
+function loadProducts(){ try { return JSON.parse(localStorage.getItem(PRODUCTS_STOCK_KEY) || "[]"); } catch { return []; } }
+function saveProducts(arr){ localStorage.setItem(PRODUCTS_STOCK_KEY, JSON.stringify(arr)); }
+function loadOrders(){ try { return JSON.parse(localStorage.getItem(ORDERS_KEY) || "[]"); } catch { return []; } }
+function saveOrders(arr){ localStorage.setItem(ORDERS_KEY, JSON.stringify(arr)); }
+
+function renderProductos() {
+  const container = document.getElementById("productosList");
+  container.innerHTML = "";
+  const prods = loadProducts();
+  if (!prods.length) { container.innerHTML = "<div class='muted-small'>No hay productos.</div>"; return; }
+  prods.forEach(p => {
+    const d = document.createElement("div");
+    d.className = "line";
+    d.innerHTML = `<div>
+        <div class="fw-semibold">${escapeHtml(p.nombre)}</div>
+        <div class="muted-small">${escapeHtml(p.unidad || '')}</div>
+      </div>
+      <div style="min-width:220px;text-align:right">
+        <div>$ ${Number(p.precio).toLocaleString()}</div>
+        <div class="qty">${Number(p.stock).toLocaleString()} en stock</div>
+      </div>`;
+    container.appendChild(d);
+  });
+
+  const sel = document.getElementById("selProducto");
+  sel.innerHTML = "";
+  prods.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = `${p.nombre} · stock: ${p.stock}`;
+    sel.appendChild(opt);
+  });
+}
+
+let CART = [];
+
+function agregarAlCarrito() {
+  const prodId = document.getElementById("selProducto").value;
+  const cantidad = Number(document.getElementById("cantidadPedido").value) || 0;
+  if (!prodId || cantidad <= 0) return showMessage("Selecciona producto y cantidad válida", "danger");
+  const products = loadProducts();
+  const prod = products.find(p=>p.id===prodId);
+  if (!prod) return showMessage("Producto no encontrado", "danger");
+
+  const existing = CART.find(c=>c.productId===prodId);
+  if (existing) existing.cantidad += cantidad; else CART.push({ productId: prodId, cantidad });
+  renderCarrito();
+  showMessage("Producto agregado al carrito", "success");
+}
+
+function renderCarrito() {
+  const cont = document.getElementById("carritoList");
+  cont.innerHTML = "";
+  if (CART.length===0) { cont.innerHTML = "<div class='muted-small'>Carrito vacío</div>"; return; }
+
+  CART.forEach((item, idx) => {
+    const products = loadProducts();
+    const p = products.find(x=>x.id===item.productId);
+    const row = document.createElement("div");
+    row.className = "line";
+    row.innerHTML = `
+      <div>
+        <div class="fw-semibold">${escapeHtml(p?.nombre || '—')}</div>
+        <div class="muted-small">Cantidad: ${item.cantidad}</div>
+      </div>
+      <div style="min-width:220px;text-align:right">
+        <div class="d-flex gap-2 justify-content-end align-items-center">
+          <div class="me-2">$ ${Number((p?.precio||0) * item.cantidad).toLocaleString()}</div>
+          <button class="btn btn-sm btn-outline-danger btn-sm-compact" onclick="eliminarItemCarrito(${idx})">Eliminar</button>
+        </div>
+      </div>`;
+    cont.appendChild(row);
+  });
+}
+
+function eliminarItemCarrito(index) {
+  if (index < 0 || index >= CART.length) return;
+  CART.splice(index,1);
+  renderCarrito();
+  showMessage("Item eliminado del carrito", "info");
+}
+
+function limpiarCarrito() { CART = []; renderCarrito(); showMessage("Carrito limpiado", "info"); }
+
+function confirmarVentaCarrito() {
+  if (CART.length===0) return showMessage("Carrito vacío", "danger");
+  const products = loadProducts();
+  const insufficient = [];
+  CART.forEach(item => {
+    const prod = products.find(p=>p.id===item.productId);
+    const available = prod ? Number(prod.stock) : 0;
+    if (!prod) insufficient.push({ id: item.productId, reason: "Producto no existe" });
+    else if (available < item.cantidad) insufficient.push({ id: item.productId, nombre: prod.nombre, required: item.cantidad, available });
+  });
+
+  if (insufficient.length) {
+    const lines = insufficient.map(i => i.nombre ? `${i.nombre}: requiere ${i.required}, disponible ${i.available}` : `${i.id}: ${i.reason}`).join('\n');
+    alert("Producto sin stock disponible:\n" + lines);
+    return;
+  }
+
+  CART.forEach(item => {
+    const idx = products.findIndex(p=>p.id===item.productId);
+    if (idx!==-1) {
+      products[idx].stock = Number(products[idx].stock) - Number(item.cantidad);
+      if (products[idx].stock < 0) products[idx].stock = 0;
+      products[idx].modifiedAt = Date.now();
+    }
+  });
+  saveProducts(products);
+
+  const order = {
+    id: "ORD-" + Math.random().toString(36).slice(2,9).toUpperCase(),
+    createdAt: Date.now(),
+    items: CART.map(it => {
+      const p = products.find(x=>x.id===it.productId);
+      return { productId: it.productId, nombre: p?.nombre || '—', cantidad: it.cantidad, precio: p?.precio || 0 };
+    }),
+    status: "confirmado"
+  };
+  const orders = loadOrders();
+  orders.unshift(order);
+  saveOrders(orders);
+
+  CART = [];
+  renderCarrito();
+  renderProductos();
+  renderOrders();
+  showMessage("Venta confirmada y stock actualizado", "success");
+}
+
+function renderOrders() {
+  const container = document.getElementById("ordersList");
+  const orders = loadOrders();
+  container.innerHTML = "";
+  if (!orders.length) { container.innerHTML = "<div class='muted-small'>No hay órdenes</div>"; return; }
+  orders.forEach(o => {
+    const div = document.createElement("div");
+    div.className = "mb-2";
+    const itemsDesc = o.items.map(i=> `${i.nombre} x${i.cantidad}`).join(", ");
+    div.innerHTML = `<div class="fw-semibold">${o.id}</div><div class="muted-small">${new Date(o.createdAt).toLocaleString()} · ${itemsDesc}</div>`;
+    container.appendChild(div);
+  });
+}
+
+function escapeHtml(s) { return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+let _msgTimer = null;
+function showMessage(text, type='info') {
+  clearTimeout(_msgTimer);
+  const area = document.getElementById("msgArea");
+  area.innerHTML = `<div class="alert alert-${type}">${text}</div>`;
+  _msgTimer = setTimeout(()=> area.innerHTML = "", 3000);
+}
+
+(function init(){
+  seedProductsIfNeeded();
+  renderProductos();
+  renderCarrito();
+  renderOrders();
+})();
+</script>
+</body>
+</html>
