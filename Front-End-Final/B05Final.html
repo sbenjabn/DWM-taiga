@@ -81,10 +81,6 @@
 </div>
 
 <script>
-/* Checkout (front-end simulation)
-   - Esta versión NO precarga ni rellena ningún campo automáticamente.
-   - Si el administrador desea pruebas, puede rellenar manualmente los campos.
-*/
 
 const STORAGE_CLIENTES_KEY = "bb_clientes";
 const STORAGE_ORDERS_KEY = "bb_orders";
@@ -101,7 +97,6 @@ function _loadOrders() {
 }
 function _saveOrders(arr) { localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(arr)); }
 
-/* Validaciones simples */
 function validarEmail(email) {
   return /\S+@\S+\.\S+/.test(email);
 }
@@ -125,20 +120,17 @@ function validarCvv(cvv) {
   return /^\d{3,4}$/.test(cvv);
 }
 
-/* Mensajes */
 function mostrarMensaje(html, tipo="info") {
   const cont = document.getElementById("checkoutMsg");
   cont.innerHTML = `<div class="alert alert-${tipo}">${html}</div>`;
 }
 
-/* Cancelar */
 function cancelar() {
   if (!confirm("Cancelar compra y limpiar formulario?")) return;
   document.getElementById("checkoutForm").reset();
   document.getElementById("checkoutMsg").innerHTML = "";
 }
 
-/* Confirmar compra: valida, opcionalmente guarda cliente, crea pedido y asocia */
 function confirmarCompra() {
   const nombre = document.getElementById("inputNombre").value.trim();
   const email = document.getElementById("inputEmail").value.trim().toLowerCase();
