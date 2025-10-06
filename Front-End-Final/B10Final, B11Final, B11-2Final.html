@@ -134,6 +134,7 @@ document.getElementById("guardarProdBtn").addEventListener('click', function () 
   const categoria = (document.getElementById("prodCategoria").value || "").trim();
 
   if (!nombre) return showFormError("El campo nombre es obligatorio");
+  if (!descripcion) return showFormError("El campo descripción es obligatorio");
   if (precio === null || isNaN(precio)) return showFormError("El campo precio es obligatorio");
   if (!categoria) return showFormError("El campo categoría es obligatorio");
 
