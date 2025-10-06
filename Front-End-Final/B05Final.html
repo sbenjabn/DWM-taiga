@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Checkout - Big Bite</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .card { max-width:900px; margin:24px auto; }
+    .small-muted { font-size:0.9rem; color:#6c757d; }
+  </style>
+</head>
+<body class="bg-light">
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <h5 class="card-title">Checkout</h5>
+    <p class="card-text small-muted">Ingresa los datos del cliente y la información de pago.</p>
+
+    <form id="checkoutForm" onsubmit="return false;">
+      <!-- Nombre -->
+      <div class="mb-3">
+        <label class="form-label">Nombre</label>
+        <input type="text" id="inputNombre" class="form-control" placeholder="Ej: Camila Rojas" autocomplete="name" />
+      </div>
+
+      <!-- Correo -->
+      <div class="mb-3">
+        <label class="form-label">Correo electrónico</label>
+        <input type="email" id="inputEmail" class="form-control" placeholder="Ej: cliente@ejemplo.com" autocomplete="email" />
+      </div>
+
+      <!-- Teléfono -->
+      <div class="mb-3">
+        <label class="form-label">Número de teléfono</label>
+        <input type="tel" id="inputTelefono" class="form-control" placeholder="Ej: +56912345678" autocomplete="tel" />
+      </div>
+
+      <hr />
+
+      <!-- Tarjeta -->
+      <div class="mb-3">
+        <label class="form-label">Número de tarjeta</label>
+        <input type="text" id="inputTarjeta" class="form-control" placeholder="**** **** **** ****" maxlength="19" autocomplete="cc-number" />
+      </div>
+
+      <div class="row">
+        <div class="col-6 mb-3">
+          <label class="form-label">Fecha de caducidad (MM/AA)</label>
+          <input type="text" id="inputExp" class="form-control" placeholder="MM/AA" maxlength="5" autocomplete="cc-exp" />
+        </div>
+        <div class="col-6 mb-3">
+          <label class="form-label">Código de seguridad (CVV)</label>
+          <input type="text" id="inputCvv" class="form-control" placeholder="CVV" maxlength="4" autocomplete="cc-csc" />
+        </div>
+      </div>
+
+      <!-- Dirección -->
+      <div class="mb-3">
+        <label class="form-label">Dirección de entrega</label>
+        <input type="text" id="inputDireccion" class="form-control" placeholder="Ej: Av. Principal 123, Maipú" autocomplete="street-address" />
+      </div>
+
+      <!-- Guardar datos -->
+      <div class="form-check mb-4">
+        <input class="form-check-input" type="checkbox" value="" id="guardarDatos" />
+        <label class="form-check-label" for="guardarDatos">Guardar mis datos para futuras compras</label>
+      </div>
+
+      <!-- Mensajes -->
+      <div id="checkoutMsg" class="mb-3"></div>
+
+      <!-- Botones -->
+      <div class="d-flex justify-content-between">
+        <button class="btn btn-outline-secondary" onclick="cancelar()">Cancelar</button>
+        <button class="btn btn-primary" onclick="confirmarCompra()">Confirmar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+/* Checkout (front-end simulation)
+   - Esta versión NO precarga ni rellena ningún campo automáticamente.
+   - Si el administrador desea pruebas, puede rellenar manualmente los campos.
+*/
+
+const STORAGE_CLIENTES_KEY = "bb_clientes";
+const STORAGE_ORDERS_KEY = "bb_orders";
+
+function _loadClientes() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_CLIENTES_KEY) || "[]"); }
+  catch { return []; }
+}
+function _saveClientes(arr) { localStorage.setItem(STORAGE_CLIENTES_KEY, JSON.stringify(arr)); }
+
+function _loadOrders() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_ORDERS_KEY) || "[]"); }
+  catch { return []; }
+}
+function _saveOrders(arr) { localStorage.setItem(STORAGE_ORDERS_KEY, JSON.stringify(arr)); }
+
+/* Validaciones simples */
+function validarEmail(email) {
+  return /\S+@\S+\.\S+/.test(email);
+}
+function validarTelefono(tel) {
+  return /^\+?\d{8,15}$/.test(tel.replace(/\s+/g,'')); 
+}
+function validarTarjeta(num) {
+  const digits = num.replace(/\s+/g,'').replace(/[^0-9]/g,'');
+  return digits.length >= 13 && digits.length <= 19;
+}
+function validarExp(mmYY) {
+  if (!/^\d{2}\/\d{2}$/.test(mmYY)) return false;
+  const [mm, yy] = mmYY.split("/").map(s => parseInt(s,10));
+  if (mm < 1 || mm > 12) return false;
+  const now = new Date();
+  const year = 2000 + yy;
+  const exp = new Date(year, mm);
+  return exp > now;
+}
+function validarCvv(cvv) {
+  return /^\d{3,4}$/.test(cvv);
+}
+
+/* Mensajes */
+function mostrarMensaje(html, tipo="info") {
+  const cont = document.getElementById("checkoutMsg");
+  cont.innerHTML = `<div class="alert alert-${tipo}">${html}</div>`;
+}
+
+/* Cancelar */
+function cancelar() {
+  if (!confirm("Cancelar compra y limpiar formulario?")) return;
+  document.getElementById("checkoutForm").reset();
+  document.getElementById("checkoutMsg").innerHTML = "";
+}
+
+/* Confirmar compra: valida, opcionalmente guarda cliente, crea pedido y asocia */
+function confirmarCompra() {
+  const nombre = document.getElementById("inputNombre").value.trim();
+  const email = document.getElementById("inputEmail").value.trim().toLowerCase();
+  const telefono = document.getElementById("inputTelefono").value.trim();
+  const tarjeta = document.getElementById("inputTarjeta").value.trim();
+  const exp = document.getElementById("inputExp").value.trim();
+  const cvv = document.getElementById("inputCvv").value.trim();
+  const direccion = document.getElementById("inputDireccion").value.trim();
+  const guardar = document.getElementById("guardarDatos").checked;
+
+  if (!nombre || !email || !telefono) {
+    mostrarMensaje("Nombre, correo y teléfono son obligatorios.", "danger");
+    return;
+  }
+  if (!validarEmail(email)) {
+    mostrarMensaje("Correo inválido.", "danger");
+    return;
+  }
+  if (!validarTelefono(telefono)) {
+    mostrarMensaje("Teléfono inválido. Incluye código de país, ejemplo +56912345678.", "danger");
+    return;
+  }
+  if (!validarTarjeta(tarjeta)) {
+    mostrarMensaje("Número de tarjeta inválido.", "danger");
+    return;
+  }
+  if (!validarExp(exp)) {
+    mostrarMensaje("Fecha de caducidad inválida o tarjeta expirada (formato MM/AA).", "danger");
+    return;
+  }
+  if (!validarCvv(cvv)) {
+    mostrarMensaje("CVV inválido.", "danger");
+    return;
+  }
+  if (!direccion) {
+    mostrarMensaje("Dirección de entrega es obligatoria.", "danger");
+    return;
+  }
+
+  const orderId = "BB-" + Math.random().toString(36).slice(2,9).toUpperCase();
+  const pedido = {
+    id: orderId,
+    cliente: { nombre, email, telefono, direccion },
+    fecha: Date.now(),
+    estado: "Pendiente"
+  };
+
+  let clientes = _loadClientes();
+  const existeIdx = clientes.findIndex(c => c.email === email);
+  let mensajeRegistro = "";
+  if (guardar) {
+    if (existeIdx === -1) {
+      const nuevo = { nombre, email, telefono, direccion, creadoEn: Date.now() };
+      clientes.push(nuevo);
+      _saveClientes(clientes);
+      mensajeRegistro = " Cliente registrado exitosamente.";
+    } else {
+      clientes[existeIdx] = { ...clientes[existeIdx], nombre, telefono, direccion, actualizadoEn: Date.now() };
+      _saveClientes(clientes);
+      mensajeRegistro = " Cliente actualizado exitosamente.";
+    }
+  }
+
+  const orders = _loadOrders();
+  orders.push(pedido);
+  _saveOrders(orders);
+
+  mostrarMensaje(`Compra confirmada (ID: <strong>${orderId}</strong>). Pedido asociado al perfil del cliente.${mensajeRegistro}`, "success");
+
+  document.getElementById("inputTarjeta").value = "";
+  document.getElementById("inputExp").value = "";
+  document.getElementById("inputCvv").value = "";
+
+  setTimeout(() => {
+    const resumen = `Pedido ${orderId}\nCliente: ${nombre}\nEmail: ${email}\nTeléfono: ${telefono}\nDirección: ${direccion}`;
+    alert("Resumen:\n" + resumen);
+  }, 300);
+
+  return true;
+}
+</script>
+</body>
+</html>
