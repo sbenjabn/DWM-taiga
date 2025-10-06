@@ -20,7 +20,6 @@
       <div class="card shadow-sm">
         <div class="card-body">
           <h5 class="card-title">Editar datos del cliente</h5>
-          <p class="small-muted">Selecciona un cliente y edita sus datos. Cambios se guardan en localStorage (simulación).</p>
 
           <!-- Selector de cliente -->
           <div class="mb-3">
@@ -99,8 +98,16 @@
 </div>
 
 <script>
-
 const STORAGE_CLIENTES_KEY = "bb_clientes";
+
+const EJEMPLO_CLIENTES = [
+  { id: "c-luis", nombre: "Luis Ramirez", email: "luis.ramirez@ejemplo.com", telefono: "912345678", direccion: "Calle Falsa 123, Santiago", tarjetaUlt4: "4242", creadoEn: Date.now() },
+  { id: "c-camila", nombre: "Camila Rojas", email: "camila.rojas@ejemplo.com", telefono: "912345679", direccion: "Av. Siempre Viva 45, Maipú", tarjetaUlt4: "1111", creadoEn: Date.now() }
+];
+
+let clientes = [];
+let clienteSeleccionadoIdx = -1;
+let copiaTemporal = null;
 
 function _loadClientes() {
   try { return JSON.parse(localStorage.getItem(STORAGE_CLIENTES_KEY) || "[]"); }
@@ -108,21 +115,24 @@ function _loadClientes() {
 }
 function _saveClientes(arr) { localStorage.setItem(STORAGE_CLIENTES_KEY, JSON.stringify(arr)); }
 
-const EJEMPLO_CLIENTES = [
-  { nombre: "Luis Ramirez", email: "luis.ramirez@ejemplo.com", telefono: "912345678", direccion: "Calle Falsa 123, Santiago", tarjetaUlt4: "4242", creadoEn: Date.now() },
-  { nombre: "Camila Rojas", email: "camila.rojas@ejemplo.com", telefono: "912345679", direccion: "Av. Siempre Viva 45, Maipú", tarjetaUlt4: "1111", creadoEn: Date.now() }
-];
-
-let clientes = [];
-let clienteSeleccionadoIdx = -1;
-let copiaTemporal = null;
-
-function init() {
-  clientes = _loadClientes();
-  if (!clientes || clientes.length === 0) {
+function seedIfMissing() {
+  try {
+    const raw = _loadClientes();
+    const emails = raw.map(c => c.email);
+    let changed = false;
+    EJEMPLO_CLIENTES.forEach(s => {
+      if (!emails.includes(s.email)) { raw.push(s); changed = true; }
+    });
+    if (changed || raw.length === 0) _saveClientes(raw);
+    clientes = raw;
+  } catch (e) {
     clientes = JSON.parse(JSON.stringify(EJEMPLO_CLIENTES));
     _saveClientes(clientes);
   }
+}
+
+function init() {
+  seedIfMissing();
   renderSelectClientes();
   if (clientes.length > 0) {
     document.getElementById("selectCliente").value = 0;
