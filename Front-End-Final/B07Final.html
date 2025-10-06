@@ -75,7 +75,7 @@
               </div>
               <div id="perfilActions" class="d-none">
                 <button class="btn btn-danger btn-sm me-2" onclick="confirmarEliminarSeleccionado()">Eliminar</button>
-                <button class="btn btn-outline-secondary btn-sm" onclick="editarClienteSeleccionado()">Editar</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="redirigirEditarSeleccionado()">Editar</button>
               </div>
             </div>
 
@@ -106,7 +106,7 @@
   </div>
 </div>
 
-<!-- Modal: Nuevo / Editar Cliente -->
+<!-- Modal: Nuevo Cliente -->
 <div class="modal fade" id="modalCliente" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -125,7 +125,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button class="btn btn-primary" id="modalGuardarBtn" onclick="guardarClienteModal()">Guardar</button>
+        <button class="btn btn-primary" id="modalGuardarBtn" onclick="guardarClienteModal(false)">Guardar</button>
       </div>
     </div>
   </div>
@@ -268,18 +268,9 @@ function confirmarEliminarSeleccionado() {
   renderClientes();
 }
 
-function editarClienteSeleccionado() {
+function redirigirEditarSeleccionado() {
   if (!seleccionadoId) return alert("No hay cliente seleccionado.");
-  const cliente = clientes.find(c => c.id === seleccionadoId);
-  if (!cliente) return;
-  document.getElementById("modalTitle").textContent = "Editar cliente";
-  document.getElementById("modalNombre").value = cliente.nombre;
-  document.getElementById("modalEmail").value = cliente.email;
-  document.getElementById("modalTelefono").value = cliente.telefono || "";
-  document.getElementById("modalError").classList.add("d-none");
-  const modal = new bootstrap.Modal(document.getElementById("modalCliente"));
-  modal.show();
-  document.getElementById("modalGuardarBtn").onclick = function() { guardarClienteModal(true); };
+  window.location.href = `B06Final.html?clientId=${encodeURIComponent(seleccionadoId)}`;
 }
 
 function abrirPerfilNuevo() {
