@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Editar Datos del Cliente - Big Bite</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .label-col { font-weight:600; }
+    .small-muted { color:#6c757d; font-size:0.9rem; }
+    .field-row { align-items:center; }
+  </style>
+</head>
+<body class="bg-light">
+
+<div class="container mt-4">
+  <div class="row">
+    <div class="col-12 col-md-8 offset-md-2">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">Editar datos del cliente</h5>
+          <p class="small-muted">Selecciona un cliente y edita sus datos. Cambios se guardan en localStorage (simulación).</p>
+
+          <!-- Selector de cliente -->
+          <div class="mb-3">
+            <label class="form-label">Cliente</label>
+            <select id="selectCliente" class="form-select" onchange="cargarClienteSeleccionado()">
+              <!-- opciones inyectadas por JS -->
+            </select>
+          </div>
+
+          <!-- Formulario de visualización / edición -->
+          <div id="clienteCard">
+            <div class="row mb-3 field-row">
+              <div class="col-12 col-md-3 label-col">Nombre</div>
+              <div class="col-10 col-md-7">
+                <input type="text" id="campoNombre" class="form-control" readonly />
+              </div>
+              <div class="col-2 col-md-2">
+                <button class="btn btn-sm btn-outline-primary w-100" onclick="toggleEditar('nombre')">Editar</button>
+              </div>
+            </div>
+
+            <div class="row mb-3 field-row">
+              <div class="col-12 col-md-3 label-col">Correo electrónico</div>
+              <div class="col-10 col-md-7">
+                <input type="email" id="campoEmail" class="form-control" readonly />
+              </div>
+              <div class="col-2 col-md-2">
+                <button class="btn btn-sm btn-outline-primary w-100" onclick="toggleEditar('email')">Editar</button>
+              </div>
+            </div>
+
+            <div class="row mb-3 field-row">
+              <div class="col-12 col-md-3 label-col">Número de teléfono</div>
+              <div class="col-10 col-md-7">
+                <input type="tel" id="campoTelefono" class="form-control" readonly />
+              </div>
+              <div class="col-2 col-md-2">
+                <button class="btn btn-sm btn-outline-primary w-100" onclick="toggleEditar('telefono')">Editar</button>
+              </div>
+            </div>
+
+            <div class="row mb-3 field-row">
+              <div class="col-12 col-md-3 label-col">Dirección de entrega</div>
+              <div class="col-10 col-md-7">
+                <input type="text" id="campoDireccion" class="form-control" readonly />
+              </div>
+              <div class="col-2 col-md-2">
+                <button class="btn btn-sm btn-outline-primary w-100" onclick="toggleEditar('direccion')">Editar</button>
+              </div>
+            </div>
+
+            <div class="row mb-3 field-row">
+              <div class="col-12 col-md-3 label-col">Tarjeta (últimos 4)</div>
+              <div class="col-10 col-md-7">
+                <input type="text" id="campoTarjeta" class="form-control" readonly />
+              </div>
+              <div class="col-2 col-md-2">
+                <button class="btn btn-sm btn-outline-primary w-100" onclick="toggleEditar('tarjeta')">Editar</button>
+              </div>
+            </div>
+
+            <!-- Mensajes -->
+            <div id="msgArea" class="mb-3"></div>
+
+            <!-- Botones Guardar / Cancelar -->
+            <div class="d-flex justify-content-between">
+              <button class="btn btn-outline-secondary" onclick="revertirCambios()">Cancelar</button>
+              <button class="btn btn-primary" onclick="guardarCambios()">Guardar cambios</button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const STORAGE_CLIENTES_KEY = "bb_clientes";
+
+function _loadClientes() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_CLIENTES_KEY) || "[]"); }
+  catch { return []; }
+}
+function _saveClientes(arr) { localStorage.setItem(STORAGE_CLIENTES_KEY, JSON.stringify(arr)); }
+
+const EJEMPLO_CLIENTES = [
+  { nombre: "Luis Ramirez", email: "luis.ramirez@ejemplo.com", telefono: "912345678", direccion: "Calle Falsa 123, Santiago", tarjetaUlt4: "4242", creadoEn: Date.now() },
+  { nombre: "Camila Rojas", email: "camila.rojas@ejemplo.com", telefono: "912345679", direccion: "Av. Siempre Viva 45, Maipú", tarjetaUlt4: "1111", creadoEn: Date.now() }
+];
+
+let clientes = [];
+let clienteSeleccionadoIdx = -1;
+let copiaTemporal = null;
+
+function init() {
+  clientes = _loadClientes();
+  if (!clientes || clientes.length === 0) {
+    clientes = JSON.parse(JSON.stringify(EJEMPLO_CLIENTES));
+    _saveClientes(clientes);
+  }
+  renderSelectClientes();
+  if (clientes.length > 0) {
+    document.getElementById("selectCliente").value = 0;
+    cargarClienteSeleccionado();
+  }
+}
+
+function renderSelectClientes() {
+  const sel = document.getElementById("selectCliente");
+  sel.innerHTML = "";
+  clientes.forEach((c, idx) => {
+    const opt = document.createElement("option");
+    opt.value = idx;
+    opt.textContent = c.nombre;
+    sel.appendChild(opt);
+  });
+}
+
+function cargarClienteSeleccionado() {
+  const sel = document.getElementById("selectCliente");
+  clienteSeleccionadoIdx = parseInt(sel.value, 10);
+  const cliente = clientes[clienteSeleccionadoIdx];
+  if (!cliente) return;
+  copiaTemporal = JSON.parse(JSON.stringify(cliente));
+  document.getElementById("campoNombre").value = cliente.nombre || "";
+  document.getElementById("campoEmail").value = cliente.email || "";
+  document.getElementById("campoTelefono").value = cliente.telefono || "";
+  document.getElementById("campoDireccion").value = cliente.direccion || "";
+  document.getElementById("campoTarjeta").value = cliente.tarjetaUlt4 ? `**** **** **** ${cliente.tarjetaUlt4}` : "";
+  setAllReadonly(true);
+  clearMsg();
+}
+
+function toggleEditar(campo) {
+  clearMsg();
+  const map = {
+    nombre: "campoNombre",
+    email: "campoEmail",
+    telefono: "campoTelefono",
+    direccion: "campoDireccion",
+    tarjeta: "campoTarjeta"
+  };
+  const id = map[campo];
+  if (!id) return;
+  const el = document.getElementById(id);
+  const isReadonly = el.hasAttribute("readonly");
+  if (isReadonly) {
+    setAllReadonly(true);
+    el.removeAttribute("readonly");
+    el.focus();
+  } else {
+    el.setAttribute("readonly", "true");
+  }
+}
+
+function setAllReadonly(flag) {
+  ["campoNombre","campoEmail","campoTelefono","campoDireccion","campoTarjeta"].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (flag) el.setAttribute("readonly","true"); else el.removeAttribute("readonly");
+  });
+}
+
+function validarTelefono(tel) {
+  if (!tel) return false;
+  const digits = tel.replace(/\s+/g, "").replace(/\D/g, "");
+  return digits.length >= 7 && digits.length <= 15;
+}
+function validarDireccion(addr) {
+  if (!addr) return false;
+  const trimmed = addr.trim();
+  if (trimmed.length < 5) return false;
+  if (!/[a-zA-Z0-9]/.test(trimmed)) return false;
+  return true;
+}
+
+function showSuccess(msg) {
+  const area = document.getElementById("msgArea");
+  area.innerHTML = `<div class="alert alert-success">${msg}</div>`;
+}
+function showError(msg) {
+  const area = document.getElementById("msgArea");
+  area.innerHTML = `<div class="alert alert-danger">${msg}</div>`;
+}
+function clearMsg() {
+  document.getElementById("msgArea").innerHTML = "";
+}
+
+function guardarCambios() {
+  clearMsg();
+  if (clienteSeleccionadoIdx === -1) { showError("No hay cliente seleccionado."); return; }
+  const cliente = clientes[clienteSeleccionadoIdx];
+  const nombre = document.getElementById("campoNombre").value.trim();
+  const email = document.getElementById("campoEmail").value.trim().toLowerCase();
+  const telefono = document.getElementById("campoTelefono").value.trim();
+  const direccion = document.getElementById("campoDireccion").value.trim();
+  const tarjeta = document.getElementById("campoTarjeta").value.trim();
+
+  if (!validarTelefono(telefono)) {
+    showError("Formato de teléfono inválido. Debe contener entre 7 y 15 dígitos.");
+    return;
+  }
+  if (!validarDireccion(direccion)) {
+    showError("Formato de dirección inválido");
+    return;
+  }
+
+  cliente.nombre = nombre || cliente.nombre;
+  cliente.email = email || cliente.email;
+  cliente.telefono = telefono || cliente.telefono;
+  cliente.direccion = direccion || cliente.direccion;
+  const digitsTar = tarjeta.replace(/\D/g,'');
+  if (digitsTar.length >= 4) {
+    cliente.tarjetaUlt4 = digitsTar.slice(-4);
+  }
+
+  clientes[clienteSeleccionadoIdx] = cliente;
+  _saveClientes(clientes);
+
+  renderSelectClientes();
+  document.getElementById("selectCliente").value = clienteSeleccionadoIdx;
+
+  showSuccess("Datos actualizados correctamente");
+  setAllReadonly(true);
+}
+
+function revertirCambios() {
+  if (!copiaTemporal) return;
+  clientes[clienteSeleccionadoIdx] = JSON.parse(JSON.stringify(copiaTemporal));
+  _saveClientes(clientes);
+  cargarClienteSeleccionado();
+  clearMsg();
+}
+
+init();
+
+window.__testActualizarTelefonoLuis = function() {
+  const idx = clientes.findIndex(c => c.nombre.toLowerCase().includes("luis"));
+  if (idx === -1) { alert("Luis no encontrado"); return; }
+  document.getElementById("selectCliente").value = idx;
+  cargarClienteSeleccionado();
+  document.getElementById("campoTelefono").removeAttribute("readonly");
+  document.getElementById("campoTelefono").value = "987654321";
+  guardarCambios();
+};
+
+window.__testDireccionInvalidaCamila = function() {
+  const idx = clientes.findIndex(c => c.nombre.toLowerCase().includes("camila"));
+  if (idx === -1) { alert("Camila no encontrada"); return; }
+  document.getElementById("selectCliente").value = idx;
+  cargarClienteSeleccionado();
+  document.getElementById("campoDireccion").removeAttribute("readonly");
+  document.getElementById("campoDireccion").value = "@@@@";
+  guardarCambios();
+};
+</script>
+</body>
+</html>
