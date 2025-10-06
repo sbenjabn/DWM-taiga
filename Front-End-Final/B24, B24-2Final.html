@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestión de Órdenes - Big Bite</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .muted-small { font-size:0.9rem; color:#6c757d; }
+    .order-row { padding:10px 0; border-bottom:1px solid #eee; display:flex; align-items:center; gap:12px; }
+    .order-id { font-weight:700; width:120px; }
+    .order-desc { flex:1; }
+    .order-assignee { width:180px; }
+  </style>
+</head>
+<body class="bg-light">
+  <div class="container mt-4">
+    <h4 class="mb-3">Gestión de Órdenes Internas</h4>
+
+    <!-- Fila de búsqueda y agregar -->
+    <div class="row mb-3 g-2">
+      <div class="col-2 d-flex align-items-end">
+        <label class="form-label small mb-0">Buscar orden</label>
+      </div>
+      <div class="col-8">
+        <input id="searchInput" class="form-control" placeholder="Ingresa número de orden (ej. A123)" oninput="renderList()" />
+      </div>
+      <div class="col-2 d-flex justify-content-end">
+        <button class="btn btn-primary" onclick="openNewOrderModal()">+ Agregar</button>
+      </div>
+    </div>
+
+    <!-- Encabezados -->
+    <div class="row mb-2 fw-semibold">
+      <div class="col-3">Número de orden</div>
+      <div class="col-5">Orden</div>
+      <div class="col-2">Encargado</div>
+      <div class="col-2 text-end">Acciones</div>
+    </div>
+
+    <!-- Lista -->
+    <div id="ordersList" class="mb-4"></div>
+
+    <!-- Botón Atrás -->
+    <div class="row mt-4">
+      <div class="col-12 d-flex justify-content-start">
+        <button class="btn btn-outline-secondary" onclick="history.back()">Atrás</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Editar / Asignar -->
+  <div class="modal fade" id="modalAssign" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title" id="modalTitle">Asignar orden</h6>
+          <button class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-2">
+            <label class="form-label small mb-1">Orden</label>
+            <div id="modalOrderId" class="fw-semibold"></div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small mb-1">Descripción</label>
+            <textarea id="modalDesc" class="form-control" rows="3" placeholder="Detalle de reposición"></textarea>
+          </div>
+          <div class="mb-3">
+            <label class="form-label small mb-1">Asignar a</label>
+            <select id="modalAssignee" class="form-select"></select>
+          </div>
+          <div class="form-check">
+            <input id="modalNotify" class="form-check-input" type="checkbox" />
+            <label class="form-check-label small">Notificar encargado (simulado)</label>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+          <button class="btn btn-primary" onclick="saveAssignment()">Guardar asignación</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+
+const ORDERS_KEY = "b24_orders_internal";
+
+function seedIfNeeded() {
+  try {
+    if (localStorage.getItem(ORDERS_KEY)) return;
+    const orders = [
+      { id: "A123", desc: "Reponer: Pan brioche, Carne Angus", assignee: "Luis Ramírez", createdAt: Date.now()-3600000, status: "pendiente" },
+      { id: "A124", desc: "Reponer: Queso, Lechuga", assignee: "Camila Rojas", createdAt: Date.now()-1800000, status: "pendiente" }
+    ];
+    localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
+  } catch(e){ console.error(e); }
+}
+
+function loadOrders() {
+  try { return JSON.parse(localStorage.getItem(ORDERS_KEY) || "[]"); } catch { return []; }
+}
+function saveOrders(arr) { localStorage.setItem(ORDERS_KEY, JSON.stringify(arr)); }
+
+const ASSIGNEES = ["Luis Ramírez","Camila Rojas","Jorge Díaz","María López"];
+
+function renderList() {
+  const container = document.getElementById("ordersList");
+  const q = (document.getElementById("searchInput").value || "").trim().toLowerCase();
+  const orders = loadOrders();
+  let filtered = orders;
+  if (q) filtered = orders.filter(o => (o.id || "").toLowerCase().includes(q) || (o.desc || "").toLowerCase().includes(q) || (o.assignee || "").toLowerCase().includes(q));
+  if (filtered.length === 0) {
+    container.innerHTML = `<div class="muted-small">No hay órdenes que coincidan.</div>`;
+    return;
+  }
+  container.innerHTML = "";
+  filtered.forEach(o => {
+    const row = document.createElement("div");
+    row.className = "order-row";
+    row.innerHTML = `
+      <div class="order-id">${escapeHtml(o.id)}</div>
+      <div class="order-desc">${escapeHtml(o.desc || '')}</div>
+      <div class="order-assignee">${escapeHtml(o.assignee || '—')}</div>
+      <div class="text-end" style="width:120px">
+        <button class="btn btn-sm btn-outline-primary me-1" onclick="openAssignModal('${o.id}')">Asignar</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="removeOrder('${o.id}')">Eliminar</button>
+      </div>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function openAssignModal(orderId) {
+  const modalEl = document.getElementById('modalAssign');
+  const bsModal = new bootstrap.Modal(modalEl);
+  const orders = loadOrders();
+  let order = orders.find(x => x.id === orderId);
+  if (!order) {
+    order = { id: orderId, desc: '', assignee: '', createdAt: Date.now(), status: 'pendiente' };
+    orders.unshift(order);
+    saveOrders(orders);
+  }
+  document.getElementById('modalTitle').textContent = order.assignee ? "Reasignar orden" : "Asignar orden";
+  document.getElementById('modalOrderId').textContent = order.id;
+  document.getElementById('modalDesc').value = order.desc || '';
+  const sel = document.getElementById('modalAssignee');
+  sel.innerHTML = '<option value="">-- Seleccionar encargado --</option>';
+  ASSIGNEES.forEach(a => {
+    const opt = document.createElement('option'); opt.value = a; opt.textContent = a;
+    if (a === order.assignee) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  document.getElementById('modalNotify').checked = true;
+  bsModal.show();
+}
+
+function saveAssignment() {
+  const orderId = document.getElementById('modalOrderId').textContent;
+  const desc = document.getElementById('modalDesc').value.trim();
+  const assignee = document.getElementById('modalAssignee').value;
+  if (!assignee) return alert('Selecciona un encargado antes de guardar.');
+  const orders = loadOrders();
+  const idx = orders.findIndex(o => o.id === orderId);
+  if (idx === -1) return alert('Orden no encontrada.');
+  orders[idx].desc = desc;
+  const previousAssignee = orders[idx].assignee;
+  orders[idx].assignee = assignee;
+  orders[idx].updatedAt = Date.now();
+  saveOrders(orders);
+  bootstrap.Modal.getInstance(document.getElementById('modalAssign')).hide();
+
+  if (!previousAssignee) {
+    showMessage(`Orden asignada correctamente a ${assignee}`, 'success');
+  } else if (previousAssignee !== assignee) {
+    showMessage(`Orden reasignada correctamente`, 'success');
+  } else {
+    showMessage(`Asignación guardada para ${assignee}`, 'info');
+  }
+
+  renderList();
+}
+
+function openNewOrderModal() {
+  const id = "A" + (Math.floor(Math.random()*900)+100);
+  const orders = loadOrders();
+  orders.unshift({ id, desc: "Nueva orden de reposición", assignee: "", createdAt: Date.now(), status: "pendiente" });
+  saveOrders(orders);
+  openAssignModal(id);
+}
+
+function removeOrder(orderId) {
+  if (!confirm(`Eliminar orden ${orderId}?`)) return;
+  let orders = loadOrders();
+  orders = orders.filter(o => o.id !== orderId);
+  saveOrders(orders);
+  showMessage(`Orden ${orderId} eliminada`, 'info');
+  renderList();
+}
+
+function reassignOrder(orderId, newAssignee) {
+  const orders = loadOrders();
+  const idx = orders.findIndex(o => o.id === orderId);
+  if (idx === -1) return showMessage('Orden no encontrada', 'danger');
+  const prev = orders[idx].assignee;
+  orders[idx].assignee = newAssignee;
+  orders[idx].updatedAt = Date.now();
+  saveOrders(orders);
+  showMessage('Orden reasignada correctamente', 'success');
+  renderList();
+}
+
+let _msgTimer = null;
+function showMessage(text, type='info') {
+  clearTimeout(_msgTimer);
+  const el = document.createElement('div');
+  el.className = `alert alert-${type} mt-3`;
+  el.textContent = text;
+  document.querySelector('.container').insertBefore(el, document.querySelector('.container').children[1]);
+  _msgTimer = setTimeout(()=> el.remove(), 4000);
+}
+
+function escapeHtml(s){ return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+
+(function init(){
+  seedIfNeeded();
+  renderList();
+  setTimeout(()=> {
+    const orders = loadOrders();
+    const a124 = orders.find(o=>o.id==="A124");
+    if (a124 && a124.assignee === "Camila Rojas") {
+      reassignOrder("A124", "Jorge Díaz");
+    }
+  }, 2000);
+})();
+</script>
+</body>
+</html>
