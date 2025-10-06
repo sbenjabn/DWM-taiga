@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Historial de Interacciones - Big Bite</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .muted-small { font-size:0.9rem; color:#6c757d; }
+    .row-head { font-weight:600; border-bottom:1px solid #e9ecef; padding-bottom:8px; }
+    .entry { padding:10px 0; border-bottom:1px dashed #f1f1f1; }
+    .gap-2 { gap:8px; display:flex; }
+  </style>
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="mb-0">Historial de Interacciones</h5>
+    <div>
+      <label class="form-label mb-0 small-muted">Cliente</label>
+      <select id="selectCliente" class="form-select" style="min-width:220px" onchange="renderHistorial()"></select>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <h6 class="mb-3">Pedidos</h6>
+
+      <div class="row row-head">
+        <div class="col-2">Pedido</div>
+        <div class="col-2">Fecha</div>
+        <div class="col-3">Producto</div>
+        <div class="col-2">Monto</div>
+        <div class="col-2">Canal</div>
+        <div class="col-1 text-end">Acciones</div>
+      </div>
+
+      <div id="pedidosList"></div>
+      <div id="noPedidos" class="py-3 muted-small d-none">No hay pedidos para este cliente.</div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <h6 class="mb-3">Reclamos</h6>
+
+      <div class="row row-head">
+        <div class="col-2">Reclamo</div>
+        <div class="col-2">Fecha</div>
+        <div class="col-4">Motivo</div>
+        <div class="col-3">Respuesta</div>
+        <div class="col-1 text-end">Acciones</div>
+      </div>
+
+      <div id="reclamosList"></div>
+      <div id="noReclamos" class="py-3 muted-small d-none">No hay reclamos para este cliente.</div>
+
+      <hr />
+      <h6 class="mb-2">Registrar reclamo nuevo</h6>
+      <div class="mb-2">
+        <label class="form-label small-muted">Motivo</label>
+        <input id="nuevoMotivo" class="form-control" placeholder="Ej: Producto deteriorado" />
+      </div>
+      <div class="mb-2">
+        <label class="form-label small-muted">Respuesta dada</label>
+        <input id="nuevaRespuesta" class="form-control" placeholder="Ej: Reembolso procesado" />
+      </div>
+      <div class="d-flex justify-content-end">
+        <button class="btn btn-primary" onclick="registrarReclamo()">Registrar reclamo</button>
+      </div>
+      <div id="reclamoMsg" class="mt-2"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const CLIENTES_KEY = "bb_clientes";
+const INTERACTIONS_KEY = "bb_interactions";
+
+function seedClientesBase() {
+  const existing = JSON.parse(localStorage.getItem(CLIENTES_KEY) || "[]");
+  const seed = [
+    { id: "c-luis", nombre: "Luis Ramirez", email: "luis.ramirez@ejemplo.com" },
+    { id: "c-camila", nombre: "Camila Rojas", email: "camila.rojas@ejemplo.com" }
+  ];
+  const emails = existing.map(e => e.email);
+  seed.forEach(s => { if (!emails.includes(s.email)) existing.push(s); });
+  localStorage.setItem(CLIENTES_KEY, JSON.stringify(existing));
+}
+
+function seedInteracciones() {
+  const existing = JSON.parse(localStorage.getItem(INTERACTIONS_KEY) || "null");
+  if (existing) { interactions = existing; return; }
+
+  const now = Date.now();
+  const interactionsSeed = [
+    { id: "p-1001", clienteEmail: "luis.ramirez@ejemplo.com", tipo: "pedido", fecha: now - 1000*60*60*24*10, producto: "Hamburguesa clásica", monto: 7500, canal: "cajero virtual" },
+    { id: "p-1002", clienteEmail: "luis.ramirez@ejemplo.com", tipo: "pedido", fecha: now - 1000*60*60*24*40, producto: "Combo familiar", monto: 22000, canal: "delivery" },
+
+    { id: "p-2001", clienteEmail: "camila.rojas@ejemplo.com", tipo: "pedido", fecha: now - 1000*60*60*24*3, producto: "Papas fritas", monto: 2500, canal: "caja presencial" },
+
+    { id: "r-3001", clienteEmail: "camila.rojas@ejemplo.com", tipo: "reclamo", fecha: now - 1000*60*60*24*2, motivo: "Producto frío", respuesta: "Reenviamos pedido; cliente aceptó" }
+  ];
+  localStorage.setItem(INTERACTIONS_KEY, JSON.stringify(interactionsSeed));
+  interactions = interactionsSeed;
+}
+
+let interactions = [];
+let clientes = [];
+
+function loadState() {
+  clientes = JSON.parse(localStorage.getItem(CLIENTES_KEY) || "[]");
+  interactions = JSON.parse(localStorage.getItem(INTERACTIONS_KEY) || "[]");
+}
+
+(function init() {
+  seedClientesBase();
+  seedInteracciones();
+  loadState();
+  renderClientesSelect();
+  renderHistorial();
+})();
+
+function renderClientesSelect() {
+  const sel = document.getElementById("selectCliente");
+  sel.innerHTML = "";
+  clientes.forEach((c, i) => {
+    const opt = document.createElement("option");
+    opt.value = c.email;
+    opt.textContent = c.nombre;
+    sel.appendChild(opt);
+  });
+  if (clientes.length > 0) sel.value = clientes[0].email;
+}
+
+function renderHistorial() {
+  loadState();
+  const email = document.getElementById("selectCliente").value;
+  const pedidosCont = document.getElementById("pedidosList");
+  const reclamosCont = document.getElementById("reclamosList");
+  pedidosCont.innerHTML = "";
+  reclamosCont.innerHTML = "";
+
+  const clienteInteractions = interactions.filter(i => i.clienteEmail === email);
+  const pedidos = clienteInteractions.filter(i => i.tipo === "pedido").sort((a,b)=>b.fecha-a.fecha);
+  const reclamos = clienteInteractions.filter(i => i.tipo === "reclamo").sort((a,b)=>b.fecha-a.fecha);
+
+  if (pedidos.length === 0) {
+    document.getElementById("noPedidos").classList.remove("d-none");
+  } else {
+    document.getElementById("noPedidos").classList.add("d-none");
+    pedidos.forEach(p => {
+      const d = new Date(p.fecha);
+      const row = document.createElement("div");
+      row.className = "row entry align-items-center";
+      row.innerHTML = `
+        <div class="col-2">${p.id}</div>
+        <div class="col-2">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="col-3">${p.producto}</div>
+        <div class="col-2">$ ${p.monto.toLocaleString()}</div>
+        <div class="col-2">${p.canal || 'N/D'}</div>
+        <div class="col-1 text-end">
+          <button class="btn btn-sm btn-outline-danger" title="Eliminar pedido" onclick="eliminarInteraccion('${p.id}')">✖</button>
+        </div>
+      `;
+      pedidosCont.appendChild(row);
+    });
+  }
+
+  if (reclamos.length === 0) {
+    document.getElementById("noReclamos").classList.remove("d-none");
+  } else {
+    document.getElementById("noReclamos").classList.add("d-none");
+    reclamos.forEach(r => {
+      const d = new Date(r.fecha);
+      const row = document.createElement("div");
+      row.className = "row entry align-items-center";
+      row.innerHTML = `
+        <div class="col-2">${r.id}</div>
+        <div class="col-2">${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="col-4">${r.motivo}</div>
+        <div class="col-3">${r.respuesta || '<em>Sin respuesta</em>'}</div>
+        <div class="col-1 text-end">
+          <button class="btn btn-sm btn-outline-danger" title="Eliminar reclamo" onclick="eliminarInteraccion('${r.id}')">✖</button>
+        </div>
+      `;
+      reclamosCont.appendChild(row);
+    });
+  }
+}
+
+function eliminarInteraccion(id) {
+  if (!confirm("Eliminar este registro? Esta acción no se puede deshacer.")) return;
+  loadState();
+  const idx = interactions.findIndex(i => i.id === id);
+  if (idx === -1) { alert("Registro no encontrado."); return; }
+  interactions.splice(idx, 1);
+  localStorage.setItem(INTERACTIONS_KEY, JSON.stringify(interactions));
+  renderHistorial();
+}
+
+function registrarReclamo() {
+  const email = document.getElementById("selectCliente").value;
+  const motivo = (document.getElementById("nuevoMotivo").value || "").trim();
+  const respuesta = (document.getElementById("nuevaRespuesta").value || "").trim();
+  const msg = document.getElementById("reclamoMsg");
+  msg.innerHTML = "";
+
+  if (!email) { msg.innerHTML = '<div class="text-danger">Selecciona un cliente.</div>'; return; }
+  if (!motivo) { msg.innerHTML = '<div class="text-danger">Ingresa el motivo del reclamo.</div>'; return; }
+
+  const nuevo = {
+    id: "r-" + Math.random().toString(36).slice(2,9),
+    clienteEmail: email,
+    tipo: "reclamo",
+    fecha: Date.now(),
+    motivo,
+    respuesta: respuesta || ""
+  };
+  interactions.push(nuevo);
+  localStorage.setItem(INTERACTIONS_KEY, JSON.stringify(interactions));
+
+  msg.innerHTML = '<div class="text-success">Reclamo registrado correctamente.</div>';
+  document.getElementById("nuevoMotivo").value = "";
+  document.getElementById("nuevaRespuesta").value = "";
+  renderHistorial();
+}
+</script>
+</body>
+</html>
