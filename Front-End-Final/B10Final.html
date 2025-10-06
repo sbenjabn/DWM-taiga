@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gestión de Productos - Big Bite</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .muted-small { font-size:0.9rem; color:#6c757d; }
+    .product-row { padding:12px 0; border-bottom:1px solid #e9ecef; display:flex; justify-content:space-between; align-items:center; }
+    .product-meta { color:#6c757d; font-size:0.9rem; }
+  </style>
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+  <div class="d-flex align-items-center mb-3">
+    <h5 class="mb-0 me-auto">Productos</h5>
+    <div class="d-flex gap-2">
+      <input id="buscarProducto" class="form-control form-control-sm" style="min-width:260px" placeholder="Buscar producto..." oninput="renderProductos()" />
+      <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#modalProducto">+ Nuevo</button>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body" id="productosList">
+      <!-- productos renderizados -->
+    </div>
+  </div>
+
+  <div id="msgArea" class="mb-3"></div>
+</div>
+
+<!-- Modal: Nuevo / Editar Producto -->
+<div class="modal fade" id="modalProducto" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 id="modalTitle" class="modal-title">Nuevo producto</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div id="formError" class="text-danger d-none mb-2"></div>
+
+        <label class="form-label">Nombre</label>
+        <input id="prodNombre" class="form-control mb-2" placeholder="Ej: Hamburguesa BBQ" />
+
+        <label class="form-label">Descripción</label>
+        <input id="prodDescripcion" class="form-control mb-2" placeholder="Breve descripción" />
+
+        <label class="form-label">Precio (CLP)</label>
+        <input id="prodPrecio" type="number" min="0" step="1" class="form-control mb-2" placeholder="Ej: 5990" />
+
+        <label class="form-label">Categoría</label>
+        <input id="prodCategoria" class="form-control mb-2" placeholder="Ej: Hamburguesas" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button id="guardarProdBtn" class="btn btn-primary">Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const PRODUCTS_KEY = "bb_products_v1";
+
+function loadProductos() {
+  try { return JSON.parse(localStorage.getItem(PRODUCTS_KEY) || "[]"); }
+  catch { return []; }
+}
+function saveProductos(arr) { localStorage.setItem(PRODUCTS_KEY, JSON.stringify(arr)); }
+
+function seedProductos() {
+  const existing = loadProductos();
+  if (existing.length > 0) return;
+  const ejemplo = {
+    id: "p-" + Math.random().toString(36).slice(2,9),
+    nombre: "Hamburguesa BBQ",
+    descripcion: "Hamburguesa con salsa BBQ y queso",
+    precio: 5990,
+    categoria: "Hamburguesas",
+    creadoEn: Date.now()
+  };
+  saveProductos([ejemplo]);
+}
+
+function renderProductos() {
+  const q = (document.getElementById("buscarProducto").value || "").trim().toLowerCase();
+  const cont = document.getElementById("productosList");
+  const prods = loadProductos().filter(p => !q || p.nombre.toLowerCase().includes(q) || (p.categoria||"").toLowerCase().includes(q));
+  cont.innerHTML = "";
+  if (prods.length === 0) {
+    cont.innerHTML = `<div class="muted-small">No hay productos registrados.</div>`;
+    return;
+  }
+  prods.forEach(p => {
+    const row = document.createElement("div");
+    row.className = "product-row";
+    row.innerHTML = `
+      <div>
+        <div class="fw-semibold">${p.nombre}</div>
+        <div class="product-meta">${p.descripcion || ''} · ${p.categoria || 'Sin categoría'}</div>
+      </div>
+      <div class="text-end">
+        <div class="fw-semibold mb-1">$ ${Number(p.precio).toLocaleString()}</div>
+        <div class="d-flex gap-2 justify-content-end">
+          <button class="btn btn-sm btn-outline-secondary" onclick="editarProducto('${p.id}')">Editar</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="eliminarProducto('${p.id}')">Eliminar</button>
+        </div>
+      </div>
+    `;
+    cont.appendChild(row);
+  });
+}
+
+document.getElementById("modalProducto").addEventListener('show.bs.modal', function (e) {
+  if (!window._editingProductId) {
+    document.getElementById("modalTitle").textContent = "Nuevo producto";
+    document.getElementById("prodNombre").value = "";
+    document.getElementById("prodDescripcion").value = "";
+    document.getElementById("prodPrecio").value = "";
+    document.getElementById("prodCategoria").value = "";
+    hideFormError();
+  }
+});
+
+document.getElementById("guardarProdBtn").addEventListener('click', function () {
+  const nombre = (document.getElementById("prodNombre").value || "").trim();
+  const descripcion = (document.getElementById("prodDescripcion").value || "").trim();
+  const precioRaw = document.getElementById("prodPrecio").value;
+  const precio = precioRaw === "" ? null : Number(precioRaw);
+  const categoria = (document.getElementById("prodCategoria").value || "").trim();
+
+  if (!nombre) return showFormError("El campo nombre es obligatorio");
+  if (precio === null || isNaN(precio)) return showFormError("El campo precio es obligatorio");
+  if (!categoria) return showFormError("El campo categoría es obligatorio");
+
+  const productos = loadProductos();
+
+  if (window._editingProductId) {
+    const idx = productos.findIndex(p => p.id === window._editingProductId);
+    if (idx !== -1) {
+      productos[idx].nombre = nombre;
+      productos[idx].descripcion = descripcion;
+      productos[idx].precio = precio;
+      productos[idx].categoria = categoria;
+      productos[idx].modificadoEn = Date.now();
+      saveProductos(productos);
+      hideFormError();
+      bootstrap.Modal.getInstance(document.getElementById("modalProducto")).hide();
+      window._editingProductId = null;
+      showMessage("Producto actualizado exitosamente", "success");
+      renderProductos();
+      return;
+    }
+  }
+
+  const nuevo = {
+    id: "p-" + Math.random().toString(36).slice(2,9),
+    nombre,
+    descripcion,
+    precio,
+    categoria,
+    creadoEn: Date.now()
+  };
+  productos.unshift(nuevo);
+  saveProductos(productos);
+  hideFormError();
+  bootstrap.Modal.getInstance(document.getElementById("modalProducto")).hide();
+  showMessage("Producto registrado exitosamente", "success");
+  renderProductos();
+});
+
+function editarProducto(id) {
+  const productos = loadProductos();
+  const p = productos.find(x => x.id === id);
+  if (!p) return alert("Producto no encontrado");
+  window._editingProductId = id;
+  document.getElementById("modalTitle").textContent = "Editar producto";
+  document.getElementById("prodNombre").value = p.nombre || "";
+  document.getElementById("prodDescripcion").value = p.descripcion || "";
+  document.getElementById("prodPrecio").value = p.precio != null ? p.precio : "";
+  document.getElementById("prodCategoria").value = p.categoria || "";
+  hideFormError();
+  const modal = new bootstrap.Modal(document.getElementById("modalProducto"));
+  modal.show();
+}
+
+function eliminarProducto(id) {
+  if (!confirm("Eliminar producto? Esta acción no se puede deshacer.")) return;
+  const productos = loadProductos().filter(p => p.id !== id);
+  saveProductos(productos);
+  showMessage("Producto eliminado", "warning");
+  renderProductos();
+}
+
+function showFormError(text) {
+  const el = document.getElementById("formError");
+  el.textContent = text;
+  el.classList.remove("d-none");
+}
+function hideFormError() {
+  const el = document.getElementById("formError");
+  el.textContent = "";
+  el.classList.add("d-none");
+}
+let _msgTimer = null;
+function showMessage(text, type = "info") {
+  clearTimeout(_msgTimer);
+  const area = document.getElementById("msgArea");
+  area.innerHTML = `<div class="alert alert-${type} alert-sm" role="alert">${text}</div>`;
+  _msgTimer = setTimeout(()=> area.innerHTML = "", 3500);
+}
+
+(function init() {
+  seedProductos();
+  renderProductos();
+})();
+</script>
+</body>
+</html>
