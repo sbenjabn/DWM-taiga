@@ -33,7 +33,7 @@
       <!-- Campo Nuevo Usuario -->
       <div class="text-center">
         <p>¿Nuevo usuario?</p>
-        <button class="btn btn-outline-secondary">Registrar</button>
+        <button class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#modalRegistro">Registrar</button>
       </div>
 
       <!-- Mensaje de error -->
@@ -62,6 +62,37 @@
   </div>
 </div>
 
+<!-- Modal Registro -->
+<div class="modal fade" id="modalRegistro" tabindex="-1" aria-labelledby="modalRegistroLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Registro de nuevo usuario</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <label class="form-label">Nombre completo</label>
+        <input type="text" id="regNombre" class="form-control mb-3" placeholder="Ej: Luis Ramírez">
+
+        <label class="form-label">Correo electrónico</label>
+        <input type="email" id="regEmail" class="form-control mb-3" placeholder="Ej: cliente@ejemplo.com">
+
+        <label class="form-label">Contraseña</label>
+        <input type="password" id="regPass" class="form-control mb-3" placeholder="••••••••">
+
+        <label class="form-label">Confirmar contraseña</label>
+        <input type="password" id="regConfirm" class="form-control mb-3" placeholder="••••••••">
+
+        <div id="regError" class="text-danger d-none"></div>
+        <div id="regSuccess" class="text-success d-none"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="registrar()">Crear cuenta</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 let failedAttempts = 0;
 
@@ -73,7 +104,6 @@ function login() {
   errorMsg.classList.add("d-none");
 
   if (email === "cliente@ejemplo.com" && password === "Segura2025") {
-    // Simula que el usuario tiene 2FA activado
     const modal = new bootstrap.Modal(document.getElementById("modal2FA"));
     modal.show();
   } else {
@@ -93,10 +123,34 @@ function verify2FA() {
 
   if (code === "654321") {
     alert("Autenticación exitosa. Redirigiendo al panel...");
-    // Aquí podrías redirigir según el rol del usuario
   } else {
     codeError.classList.remove("d-none");
   }
+}
+
+function registrar() {
+  const nombre = document.getElementById("regNombre").value.trim();
+  const email = document.getElementById("regEmail").value.trim();
+  const pass = document.getElementById("regPass").value;
+  const confirm = document.getElementById("regConfirm").value;
+  const error = document.getElementById("regError");
+  const success = document.getElementById("regSuccess");
+
+  error.classList.add("d-none");
+  success.classList.add("d-none");
+
+  if (!nombre || !email || !pass || !confirm) {
+    error.textContent = "Todos los campos son obligatorios";
+    error.classList.remove("d-none");
+    return;
+  }
+  if (pass !== confirm) {
+    error.textContent = "Las contraseñas no coinciden";
+    error.classList.remove("d-none");
+    return;
+  }
+  success.textContent = "Registro exitoso. Puedes iniciar sesión.";
+  success.classList.remove("d-none");
 }
 </script>
 
