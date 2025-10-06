@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Validar y Confirmar Ventas - Big Bite</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .muted-small { font-size:0.9rem; color:#6c757d; }
+    .card-row { display:flex; justify-content:space-between; align-items:center; padding:12px; border-bottom:1px solid #eee; }
+    .check-label { display:flex; align-items:center; gap:10px; }
+  </style>
+</head>
+<body class="bg-light">
+<div class="container mt-4">
+  <h4 class="mb-3">Validar y Confirmar Ventas</h4>
+
+  <div class="card mb-3">
+    <div class="card-body">
+      <div class="mb-2">
+        <label class="form-label">Ventas pendientes</label>
+        <select id="selectVenta" class="form-select" onchange="cargarVentaSeleccionada()"></select>
+      </div>
+
+      <div id="ventaPanel" class="mt-3 d-none">
+        <div class="card mb-3">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div>
+                <div class="fw-semibold" id="ventaNumero">Venta #—</div>
+                <div class="muted-small" id="ventaEstado">Estado: —</div>
+              </div>
+              <div class="muted-small" id="ventaClienteInfo">—</div>
+            </div>
+
+            <div class="mb-3">
+              <div class="fw-semibold mb-1">Productos</div>
+              <ul id="ventaProductos" class="mb-0"></ul>
+            </div>
+
+            <div class="mb-3">
+              <div class="fw-semibold mb-1">Total</div>
+              <div id="ventaTotal">$ 0</div>
+            </div>
+
+            <hr />
+
+            <div class="mb-2">
+              <label class="check-label"><input id="chkDatosCliente" type="checkbox" /> <span>Datos de cliente completos</span></label>
+            </div>
+            <div class="mb-2">
+              <label class="check-label"><input id="chkProductos" type="checkbox" /> <span>Productos verificados</span></label>
+            </div>
+            <div class="mb-2">
+              <label class="check-label"><input id="chkComprobante" type="checkbox" /> <span>Comprobante de pago disponible</span></label>
+            </div>
+
+            <div id="ventaNotas" class="mt-3 muted-small"></div>
+
+            <div class="d-flex justify-content-between mt-4">
+              <button class="btn btn-outline-secondary" onclick="cancelarAccion()">Cancelar</button>
+              <button id="btnConfirmarVenta" class="btn btn-primary" onclick="confirmarVenta()">Confirmar venta</button>
+            </div>
+
+            <div id="msgArea" class="mt-3"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="noSelection" class="muted-small">Selecciona una venta pendiente para validar y confirmar.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+const PENDING_KEY = "bb_sales_pending";
+const HISTORY_KEY = "bb_sales_history";
+
+function seedSalesIfNeeded() {
+  try {
+    const raw = localStorage.getItem(PENDING_KEY);
+    if (raw) return;
+    const now = Date.now();
+    const sales = [
+      {
+        id: "10234",
+        tipo: "virtual",
+        cliente: { nombre: "Cliente Completo", telefono: "+56911111111", email: "cliente.complete@ejemplo.com" },
+        productos: [
+          { nombre: "Hamburguesa queso", precio: 5990, cantidad: 1 },
+          { nombre: "Papas medianas", precio: 1990, cantidad: 1 }
+        ],
+        total: 5990 + 1990,
+        comprobantePago: { existe: true, ref: "TXN-7890" },
+        estado: "Pendiente",
+        creadoEn: now - 60000
+      },
+      {
+        id: "10235",
+        tipo: "presencial",
+        cliente: { nombre: "Cliente Sin Comprobante", telefono: "+56922222222", email: "cliente.no.pay@ejemplo.com" },
+        productos: [
+          { nombre: "Hamburguesa sin cebolla", precio: 5990, cantidad: 1 },
+          { nombre: "Bebida sin hielo", precio: 1200, cantidad: 1 }
+        ],
+        total: 5990 + 1200,
+        comprobantePago: { existe: false, ref: null },
+        estado: "Pendiente",
+        creadoEn: now - 120000
+      }
+    ];
+    localStorage.setItem(PENDING_KEY, JSON.stringify(sales));
+  } catch (e) { console.error(e); }
+}
+
+function loadPending() {
+  try { return JSON.parse(localStorage.getItem(PENDING_KEY) || "[]"); } catch { return []; }
+}
+function savePending(arr) { localStorage.setItem(PENDING_KEY, JSON.stringify(arr)); }
+function loadHistory() { try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; } }
+function saveHistory(arr) { localStorage.setItem(HISTORY_KEY, JSON.stringify(arr)); }
+
+function renderVentasSelect() {
+  const sel = document.getElementById("selectVenta");
+  sel.innerHTML = "";
+  const list = loadPending();
+  if (list.length === 0) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "No hay ventas pendientes";
+    sel.appendChild(opt);
+    document.getElementById("ventaPanel").classList.add("d-none");
+    return;
+  }
+  list.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.id;
+    opt.textContent = `${s.id} · ${s.cliente?.nombre || '—'} · $ ${Number(s.total).toLocaleString()}`;
+    sel.appendChild(opt);
+  });
+  sel.value = list[0].id;
+  cargarVentaSeleccionada();
+}
+
+function cargarVentaSeleccionada() {
+  const id = document.getElementById("selectVenta").value;
+  const pending = loadPending();
+  const sale = pending.find(s => s.id === id);
+  if (!sale) {
+    document.getElementById("ventaPanel").classList.add("d-none");
+    document.getElementById("noSelection").classList.remove("d-none");
+    return;
+  }
+  document.getElementById("ventaPanel").classList.remove("d-none");
+  document.getElementById("noSelection").classList.add("d-none");
+
+  document.getElementById("ventaNumero").textContent = `Venta ${sale.id}`;
+  document.getElementById("ventaEstado").textContent = `Estado: ${sale.estado || 'Pendiente'}`;
+  document.getElementById("ventaClienteInfo").textContent = `${sale.cliente?.nombre || ''} · ${sale.cliente?.telefono || ''}`;
+
+  const prodList = document.getElementById("ventaProductos");
+  prodList.innerHTML = "";
+  (sale.productos || []).forEach(p => {
+    const li = document.createElement("li");
+    li.textContent = `${p.nombre} ${p.cantidad > 1 ? 'x' + p.cantidad : ''} — $ ${Number(p.precio * (p.cantidad||1)).toLocaleString()}`;
+    prodList.appendChild(li);
+  });
+
+  document.getElementById("ventaTotal").textContent = `$ ${Number(sale.total || 0).toLocaleString()}`;
+
+  document.getElementById("chkDatosCliente").checked = Boolean(sale.cliente && sale.cliente.nombre && sale.cliente.email);
+  document.getElementById("chkProductos").checked = (sale.productos && sale.productos.length > 0);
+  document.getElementById("chkComprobante").checked = Boolean(sale.comprobantePago && sale.comprobantePago.existe);
+
+  const notes = [];
+  if (!sale.cliente || !sale.cliente.email) notes.push("Faltan datos del cliente");
+  if (!sale.productos || sale.productos.length === 0) notes.push("No hay productos en la venta");
+  if (!sale.comprobantePago || !sale.comprobantePago.existe) notes.push("Falta comprobante de pago");
+  document.getElementById("ventaNotas").textContent = notes.join(" · ") || "Todos los elementos visibles para validar.";
+}
+
+function confirmarVenta() {
+  const id = document.getElementById("selectVenta").value;
+  const pending = loadPending();
+  const idx = pending.findIndex(s => s.id === id);
+  if (idx === -1) return alert("Venta no encontrada.");
+
+  const sale = pending[idx];
+
+  const chkDatos = document.getElementById("chkDatosCliente").checked;
+  const chkProd = document.getElementById("chkProductos").checked;
+  const chkComp = document.getElementById("chkComprobante").checked;
+
+  const internalComp = Boolean(sale.comprobantePago && sale.comprobantePago.existe);
+  if (!internalComp && chkComp) {
+    document.getElementById("msgArea").innerHTML = `<div class="alert alert-danger">No se puede confirmar la venta: datos de pago incompletos</div>`;
+    return;
+  }
+
+  if (!chkDatos || !chkProd || !chkComp) {
+    document.getElementById("msgArea").innerHTML = `<div class="alert alert-danger">No se puede confirmar la venta: faltan verificaciones</div>`;
+    return;
+  }
+
+  sale.estado = "Confirmada";
+  sale.confirmadoEn = Date.now();
+
+  const history = loadHistory();
+  history.unshift(sale);
+  saveHistory(history);
+
+  pending.splice(idx, 1);
+  savePending(pending);
+
+  document.getElementById("msgArea").innerHTML = `<div class="alert alert-success">Venta confirmada exitosamente</div>`;
+  setTimeout(() => {
+    renderVentasSelect();
+    if (loadPending().length === 0) {
+      document.getElementById("ventaPanel").classList.add("d-none");
+      document.getElementById("noSelection").classList.remove("d-none");
+    }
+  }, 600);
+}
+
+function cancelarAccion() {
+  cargarVentaSeleccionada();
+  document.getElementById("msgArea").innerHTML = "";
+}
+
+(function init(){
+  seedSalesIfNeeded();
+  renderVentasSelect();
+})();
+</script>
+</body>
+</html>
