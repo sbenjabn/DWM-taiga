@@ -75,7 +75,7 @@
               </div>
               <div id="perfilActions" class="d-none">
                 <button class="btn btn-danger btn-sm me-2" onclick="confirmarEliminarSeleccionado()">Eliminar</button>
-                <button class="btn btn-outline-secondary btn-sm" onclick="redirigirEditarSeleccionado()">Editar</button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="editarClienteSeleccionado()">Editar</button>
               </div>
             </div>
 
@@ -106,7 +106,7 @@
   </div>
 </div>
 
-<!-- Modal: Nuevo Cliente -->
+<!-- Modal: Nuevo / Editar Cliente -->
 <div class="modal fade" id="modalCliente" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -125,7 +125,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button class="btn btn-primary" id="modalGuardarBtn" onclick="guardarClienteModal(false)">Guardar</button>
+        <button class="btn btn-primary" id="modalGuardarBtn" onclick="guardarClienteModal()">Guardar</button>
       </div>
     </div>
   </div>
@@ -238,7 +238,12 @@ function seleccionarCliente(id) {
     const row = document.createElement("div");
     row.className = "border-bottom py-2";
     if (ev.tipo === "pedido") {
-      row.innerHTML = `<div><strong>Pedido</strong> · ${fecha} ${hora}</div><div class="muted-small">Estado: Entregado / ID simulado</div>`;
+        const productoText = ev.producto || 'N/D';
+        const montoText = (ev.monto !== null && typeof ev.monto !== 'undefined') ? `$ ${Number(ev.monto).toLocaleString()}` : 'N/D';
+        const canalText = ev.canal || 'N/D';
+        row.innerHTML = `<div><strong>Pedido</strong> · ${fecha} ${hora} · ID: ${ev.id || 'N/D'}</div>
+        <div class="muted-small">Producto: ${productoText} · Monto: ${montoText} · Canal: ${canalText}</div>`;
+
     } else {
       row.innerHTML = `<div><strong>Reclamo</strong> · ${fecha} ${hora}</div><div class="muted-small">Motivo: ${ev.detalle.motivo} · Estado: ${ev.detalle.estado}</div>`;
     }
@@ -268,9 +273,18 @@ function confirmarEliminarSeleccionado() {
   renderClientes();
 }
 
-function redirigirEditarSeleccionado() {
+function editarClienteSeleccionado() {
   if (!seleccionadoId) return alert("No hay cliente seleccionado.");
-  window.location.href = `B06Final.html?clientId=${encodeURIComponent(seleccionadoId)}`;
+  const cliente = clientes.find(c => c.id === seleccionadoId);
+  if (!cliente) return;
+  document.getElementById("modalTitle").textContent = "Editar cliente";
+  document.getElementById("modalNombre").value = cliente.nombre;
+  document.getElementById("modalEmail").value = cliente.email;
+  document.getElementById("modalTelefono").value = cliente.telefono || "";
+  document.getElementById("modalError").classList.add("d-none");
+  const modal = new bootstrap.Modal(document.getElementById("modalCliente"));
+  modal.show();
+  document.getElementById("modalGuardarBtn").onclick = function() { guardarClienteModal(true); };
 }
 
 function abrirPerfilNuevo() {
