@@ -9,8 +9,11 @@
   <style>
     .muted-small { font-size:0.9rem; color:#6c757d; }
     .cat-title { font-weight:600; margin-bottom:8px; }
-    .prod-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #eee; }
+    .prod-row { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #eee; gap:12px; }
     .prod-meta { color:#6c757d; font-size:0.9rem; }
+    .thumb { width:64px; height:64px; object-fit:cover; border-radius:6px; border:1px solid #e9ecef; background:#fff; }
+    .no-thumb { width:64px; height:64px; display:inline-flex; align-items:center; justify-content:center; background:#f8f9fa; color:#6c757d; border-radius:6px; border:1px dashed #e9ecef; font-size:0.75rem; }
+    .form-file-note { font-size:0.85rem; color:#6c757d; }
   </style>
 </head>
 <body class="bg-light">
@@ -49,7 +52,14 @@
         <label class="form-label">Categoría</label>
         <select id="prodCategoria" class="form-select mb-2"></select>
 
-        <div class="form-text muted-small">Todos los campos son obligatorios</div>
+        <label class="form-label">Imagen (opcional)</label>
+        <input id="prodImagen" type="file" accept="image/*" class="form-control form-control-sm mb-2" />
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <img id="previewImagen" class="thumb d-none" alt="Preview" />
+          <div class="form-file-note">Formatos: JPG/PNG. Recomendado &lt; 300 KB.</div>
+        </div>
+
+        <div class="form-text muted-small">Todos los campos excepto imagen son obligatorios</div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
@@ -92,8 +102,8 @@ function seedInitial() {
     if (!prods) {
       const now = Date.now();
       const initialProds = [
-        { id:"p-hbq", nombre:"Hamburguesa queso", descripcion:"Con queso cheddar", precio:5990, categoria:"Hamburguesas", creadoEn: now - 1000 },
-        { id:"p-cc", nombre:"Coca Cola", descripcion:"Bebida 350ml", precio:1200, categoria:"Bebidas", creadoEn: now - 2000 }
+        { id:"p-hbq", nombre:"Hamburguesa queso", descripcion:"Con queso cheddar", precio:5990, categoria:"Hamburguesas", creadoEn: now - 1000, imageData: null },
+        { id:"p-cc", nombre:"Coca Cola", descripcion:"Bebida 350ml", precio:1200, categoria:"Bebidas", creadoEn: now - 2000, imageData: null }
       ];
       localStorage.setItem(PRODUCTS_KEY, JSON.stringify(initialProds));
     }
@@ -145,9 +155,12 @@ function renderCategorias() {
         const row = document.createElement("div");
         row.className = "prod-row";
         row.innerHTML = `
-          <div>
-            <div class="fw-semibold">${p.nombre}</div>
-            <div class="prod-meta">${p.descripcion} · $ ${Number(p.precio).toLocaleString()}</div>
+          <div style="display:flex;gap:12px;align-items:center;">
+            ${p.imageData ? `<img src="${p.imageData}" class="thumb" alt="${escapeHtml(p.nombre)}" />` : `<div class="no-thumb">SIN IMG</div>`}
+            <div>
+              <div class="fw-semibold">${escapeHtml(p.nombre)}</div>
+              <div class="prod-meta">${escapeHtml(p.descripcion)} · $ ${Number(p.precio).toLocaleString()}</div>
+            </div>
           </div>
           <div class="d-flex gap-2 align-items-center">
             <button class="btn btn-sm btn-outline-secondary" onclick="abrirCambiarCategoria('${p.id}')">Cambiar</button>
@@ -170,6 +183,28 @@ function fillCategoriaSelect() {
   });
 }
 
+document.getElementById("prodImagen").addEventListener('change', function (ev) {
+  const file = ev.target.files[0];
+  const preview = document.getElementById("previewImagen");
+  if (!file) {
+    preview.src = "";
+    preview.classList.add("d-none");
+    return;
+  }
+  if (!file.type.startsWith("image/")) {
+    showFormError("El archivo debe ser una imagen");
+    ev.target.value = "";
+    preview.classList.add("d-none");
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    preview.src = e.target.result;
+    preview.classList.remove("d-none");
+  };
+  reader.readAsDataURL(file);
+});
+
 document.getElementById("guardarProdBtn").addEventListener('click', function(){
   const nombre = (document.getElementById("prodNombre").value || "").trim();
   const descripcion = (document.getElementById("prodDescripcion").value || "").trim();
@@ -183,16 +218,61 @@ document.getElementById("guardarProdBtn").addEventListener('click', function(){
   if (!categoria) return showFormError("Selecciona una categoría");
 
   const productos = loadProductos();
-  const nuevo = { id: "p-" + Math.random().toString(36).slice(2,9), nombre, descripcion, precio, categoria, creadoEn: Date.now() };
-  productos.unshift(nuevo);
-  saveProductos(productos);
-  hideFormError();
-  bootstrap.Modal.getInstance(document.getElementById("modalAgregar")).hide();
-  showMessage("Producto creado exitosamente", "success");
-  renderCategorias();
-  document.getElementById("prodNombre").value = "";
-  document.getElementById("prodDescripcion").value = "";
-  document.getElementById("prodPrecio").value = "";
+
+  const fileInput = document.getElementById("prodImagen");
+  const file = fileInput.files[0];
+
+  const saveWithImage = (imageData) => {
+    if (window._editingProductId) {
+      const idx = productos.findIndex(p => p.id === window._editingProductId);
+      if (idx !== -1) {
+        productos[idx].nombre = nombre;
+        productos[idx].descripcion = descripcion;
+        productos[idx].precio = precio;
+        productos[idx].categoria = categoria;
+        if (typeof imageData !== "undefined") productos[idx].imageData = imageData;
+        productos[idx].modificadoEn = Date.now();
+        saveProductos(productos);
+        hideFormError();
+        bootstrap.Modal.getInstance(document.getElementById("modalAgregar")).hide();
+        window._editingProductId = null;
+        showMessage("Producto actualizado exitosamente", "success");
+        renderCategorias();
+        return;
+      }
+    }
+
+    const nuevo = { id: "p-" + Math.random().toString(36).slice(2,9), nombre, descripcion, precio, categoria, creadoEn: Date.now(), imageData: imageData || null };
+    productos.unshift(nuevo);
+    saveProductos(productos);
+    hideFormError();
+    bootstrap.Modal.getInstance(document.getElementById("modalAgregar")).hide();
+    showMessage("Producto creado exitosamente", "success");
+    renderCategorias();
+    document.getElementById("prodNombre").value = "";
+    document.getElementById("prodDescripcion").value = "";
+    document.getElementById("prodPrecio").value = "";
+    document.getElementById("prodCategoria").value = "";
+    document.getElementById("prodImagen").value = "";
+    document.getElementById("previewImagen").src = "";
+    document.getElementById("previewImagen").classList.add("d-none");
+  };
+
+  if (file) {
+    const maxBytes = 300 * 1024;
+    if (file.size > maxBytes) {
+      return showFormError("Imagen demasiado grande. Use una imagen < 300 KB");
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const dataUrl = e.target.result;
+      saveWithImage(dataUrl);
+    };
+    reader.onerror = function() { showFormError("No se pudo leer la imagen"); };
+    reader.readAsDataURL(file);
+  } else {
+    saveWithImage(undefined);
+  }
 });
 
 let _changeProductId = null;
@@ -224,6 +304,31 @@ document.getElementById("confirmChangeCatBtn").addEventListener('click', functio
   _changeProductId = null;
 });
 
+function editarProducto(id) {
+  const productos = loadProductos();
+  const p = productos.find(x => x.id === id);
+  if (!p) return alert("Producto no encontrado");
+  window._editingProductId = id;
+  document.getElementById("modalTitle").textContent = "Editar producto";
+  document.getElementById("prodNombre").value = p.nombre || "";
+  document.getElementById("prodDescripcion").value = p.descripcion || "";
+  document.getElementById("prodPrecio").value = p.precio != null ? p.precio : "";
+  document.getElementById("prodCategoria").value = p.categoria || "";
+  document.getElementById("prodImagen").value = "";
+  const preview = document.getElementById("previewImagen");
+  if (p.imageData) {
+    preview.src = p.imageData;
+    preview.classList.remove("d-none");
+  } else {
+    preview.src = "";
+    preview.classList.add("d-none");
+  }
+  hideFormError();
+  fillCategoriaSelect();
+  const modal = new bootstrap.Modal(document.getElementById("modalAgregar"));
+  modal.show();
+}
+
 function eliminarProducto(id) {
   if (!confirm("Eliminar producto?")) return;
   const prods = loadProductos().filter(p => p.id !== id);
@@ -231,6 +336,8 @@ function eliminarProducto(id) {
   showMessage("Producto eliminado", "warning");
   renderCategorias();
 }
+
+function escapeHtml(s) { return (s||"").toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
 
 (function init(){
   seedInitial();
