@@ -169,11 +169,13 @@ function enviarPorCorreo() {
   showMessage("Abriendo cliente de correo (simulado)", "info");
 }
 
+/* UPDATED: Redirect to B18Final,%2026Final.html for Seguimiento */
 function irASeguirPedido() {
   const order = loadCurrentOrder();
   if (!order) return showMessage("No hay pedido activo para seguimiento", "danger");
   const id = encodeURIComponent(order.id);
-  const target = `B26Track.html?id=${id}`;
+  // Redirect to the specified file name exactly as requested, passing order id as query param
+  const target = `B18Final,%2026Final.html?id=${id}`;
   window.location.href = target;
 }
 
