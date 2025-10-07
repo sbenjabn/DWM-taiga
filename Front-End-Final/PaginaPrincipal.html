@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Big Bite — Panel Principal</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    :root{
+      --brand:#d9480f;
+      --accent:#ffdd57;
+      --dark:#222;
+    }
+    body{ background: linear-gradient(180deg,#fff 0%, #fff7f1 60%); color:var(--dark); font-family:Inter,system-ui,Arial,Helvetica,sans-serif; }
+    .hero{
+      background: linear-gradient(90deg, rgba(217,73,15,0.06), rgba(0,0,0,0.02));
+      border-radius:12px;
+      padding:28px;
+      display:flex;
+      gap:20px;
+      align-items:center;
+      margin-bottom:20px;
+    }
+    .hero .logo{
+      width:110px; height:110px; border-radius:18px; background:var(--brand); display:flex; align-items:center; justify-content:center; color:#fff; font-weight:800; font-size:26px; box-shadow:0 8px 20px rgba(217,73,15,0.18);
+    }
+    .hero h1{ margin:0; font-size:1.8rem; letter-spacing:0.2px; }
+    .hero p{ margin:0; color:#5b5b5b; }
+    .nav-shortcut { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+    .card-module { border-radius:12px; transition:transform .12s ease, box-shadow .12s ease; cursor:pointer; }
+    .card-module:hover{ transform:translateY(-6px); box-shadow:0 12px 30px rgba(0,0,0,0.08); }
+    .module-title{ font-weight:700; color:#222; }
+    .module-sub{ color:#6c6c6c; font-size:0.9rem; }
+    .module-cta { background:linear-gradient(90deg,var(--brand),#ff6b2d); color:#fff; border:none; border-radius:8px; padding:.35rem .7rem; font-weight:700; }
+    .modules-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+    @media (max-width:1200px){ .modules-grid{ grid-template-columns:repeat(3,1fr); } }
+    @media (max-width:900px){ .modules-grid{ grid-template-columns:repeat(2,1fr); } .hero{flex-direction:column;align-items:flex-start} }
+    @media (max-width:560px){ .modules-grid{ grid-template-columns:1fr; } .hero{padding:18px} .logo{width:86px;height:86px;font-size:22px} }
+    .icon-circle{ width:56px;height:56px;border-radius:12px;background:#fff;display:grid;place-items:center;font-weight:800;color:var(--brand); box-shadow:0 6px 16px rgba(0,0,0,0.06); }
+    footer { margin-top:26px; color:#6b6b6b; text-align:center; padding:14px 0; }
+    .section-title{ margin:20px 0 8px 0; font-weight:800; color:#333; }
+  </style>
+</head>
+<body>
+
+<div class="container py-4">
+  <!-- Header / Hero -->
+  <div class="hero">
+    <div class="logo">BB</div>
+    <div style="flex:1">
+      <h1>Big Bite</h1>
+      <p>Panel principal — Accede a módulos del sistema. Diseño inspirado en una hamburguesería: rápido, visual y ordenado.</p>
+      <div class="nav-shortcut">
+        <a class="btn btn-outline-dark btn-sm" href="B01Final.html">Iniciar sesión</a>
+        <a class="btn btn-outline-dark btn-sm" href="B02Final.html">Usuarios</a>
+        <a class="btn btn-outline-dark btn-sm" href="B04Final.html">Historial accesos</a>
+        <a class="btn btn-outline-dark btn-sm" href="B17Final.html">Carrito</a>
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-weight:700">Sucursal: Maipú</div>
+      <div class="muted-small">Operador: Administrador</div>
+    </div>
+  </div>
+
+  <!-- Modules grid -->
+  <div class="section-title">Módulos</div>
+
+  <div class="modules-grid">
+    <div class="card card-module p-3" onclick="location.href='B01Final.html'">
+      <div class="d-flex justify-content-between align-items-start">
+        <div>
+          <div class="module-title">Iniciar sesión</div>
+          <div class="module-sub">Acceso de usuarios y autenticación</div>
+        </div>
+        <div class="icon-circle">🔐</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B02Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Lista de usuarios</div>
+          <div class="module-sub">Gestión de cuentas</div>
+        </div>
+        <div class="icon-circle">👥</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B04Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Historial de accesos</div>
+          <div class="module-sub">Auditoría del sistema</div>
+        </div>
+        <div class="icon-circle">📜</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B17Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Carrito</div>
+          <div class="module-sub">Crear ventas rápidas</div>
+        </div>
+        <div class="icon-circle">🛒</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B09Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Perfil de cliente</div>
+          <div class="module-sub">Ficha y datos</div>
+        </div>
+        <div class="icon-circle">🧾</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B08Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Segmentación</div>
+          <div class="module-sub">Grupos y campañas</div>
+        </div>
+        <div class="icon-circle">📊</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B09-2Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Historial interacciones</div>
+          <div class="module-sub">Seguimiento de reclamos</div>
+        </div>
+        <div class="icon-circle">🕘</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B10Final,%20B11Final,%20B11-2Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Gestión de productos</div>
+          <div class="module-sub">Crear / editar productos</div>
+        </div>
+        <div class="icon-circle">🍔</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B12Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Productos</div>
+          <div class="module-sub">Catálogo público</div>
+        </div>
+        <div class="icon-circle">📦</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B13Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Inventario insumos</div>
+          <div class="module-sub">Control de stock</div>
+        </div>
+        <div class="icon-circle">🥫</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B15Final,%20B15-2Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Confirmación ventas</div>
+          <div class="module-sub">Validar y cerrar ventas</div>
+        </div>
+        <div class="icon-circle">✅</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B19,%20B19-2Final,%20B20Final,%20B21Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Reportes</div>
+          <div class="module-sub">Generar y exportar</div>
+        </div>
+        <div class="icon-circle">📈</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B22-2Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Panel visualización</div>
+          <div class="module-sub">Dashboards y métricas</div>
+        </div>
+        <div class="icon-circle">📊</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B24-2Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Órdenes internas</div>
+          <div class="module-sub">Coordinación cocina/reparto</div>
+        </div>
+        <div class="icon-circle">🔁</div>
+      </div>
+    </div>
+
+    <div class="card card-module p-3" onclick="location.href='B25Final.html'">
+      <div class="d-flex justify-content-between">
+        <div>
+          <div class="module-title">Pedidos</div>
+          <div class="module-sub">Seguimiento y entrega</div>
+        </div>
+        <div class="icon-circle">📦</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick actions -->
+  <div class="d-flex gap-3 mt-4 flex-wrap align-items-center">
+    <button class="module-cta" onclick="location.href='B17Final.html'">Abrir carrito</button>
+    <button class="btn btn-outline-secondary" onclick="location.href='B02Final.html'">Administrar usuarios</button>
+    <button class="btn btn-outline-secondary" onclick="location.href='B13Final.html'">Revisar stock</button>
+    <div class="ms-auto muted-small">© Big Bite · Panel administrativo</div>
+  </div>
+
+  <footer>
+    <div class="small-muted">Dirección: Av. Ejemplo 123, Maipú · Tel: +56 9 1234 5678</div>
+  </footer>
+</div>
+
+</body>
+</html>
