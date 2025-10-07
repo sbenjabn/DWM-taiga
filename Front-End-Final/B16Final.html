@@ -54,6 +54,7 @@
           <button class="btn btn-outline-primary" onclick="guardarComprobante()">Guardar comprobante</button>
           <button class="btn btn-outline-success" onclick="enviarPorCorreo()">Enviar por correo</button>
           <button class="btn btn-primary" onclick="imprimirComprobante()">Imprimir / Descargar</button>
+          <button class="btn btn-outline-info" onclick="irASeguirPedido()">Seguimiento</button>
         </div>
 
         <div id="msgArea" class="mt-3"></div>
@@ -62,7 +63,6 @@
   </div>
 
 <script>
-
 const CURRENT_ORDER_KEY = "bb_current_order";
 const RECEIPTS_KEY = "bb_receipts";
 
@@ -169,11 +169,19 @@ function enviarPorCorreo() {
   showMessage("Abriendo cliente de correo (simulado)", "info");
 }
 
+function irASeguirPedido() {
+  const order = loadCurrentOrder();
+  if (!order) return showMessage("No hay pedido activo para seguimiento", "danger");
+  const id = encodeURIComponent(order.id);
+  const target = `B26Track.html?id=${id}`;
+  window.location.href = target;
+}
+
 let _msgTimer = null;
 function showMessage(text, type='info') {
   clearTimeout(_msgTimer);
   const area = document.getElementById("msgArea");
-  area.innerHTML = `<div class="alert alert-${type}">${text}</div>`;
+  area.innerHTML = `<div class="alert alert-${type}">${escapeHtml(text)}</div>`;
   _msgTimer = setTimeout(()=> area.innerHTML = "", 3500);
 }
 
