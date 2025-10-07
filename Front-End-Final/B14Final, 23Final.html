@@ -8,10 +8,9 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <style>
     .muted-small { font-size:0.9rem; color:#6c757d; }
-    .line { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #eee; }
+    .line { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid #eee; }
     .total-line { font-weight:700; font-size:1.1rem; }
     .small-note { font-size:0.85rem; color:#6c757d; }
-    .modifier { font-style:italic; color:#495057; font-size:0.95rem; }
     .badge-paid { background:#d1e7dd; color:#0f5132; padding:4px 8px; border-radius:8px; }
     .badge-failed { background:#f8d7da; color:#842029; padding:4px 8px; border-radius:8px; }
   </style>
@@ -66,36 +65,19 @@
   </div>
 
 <script>
-
 const CURRENT_KEY = "bb_current_order";
 const ORDERS_KEY = "bb_orders";
 const DISPATCH_KEY = "bb_dispatch_orders";
 
 function loadCurrentOrder() {
-  try {
-    const raw = localStorage.getItem(CURRENT_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
+  try { const raw = localStorage.getItem(CURRENT_KEY); if (!raw) return null; return JSON.parse(raw); } catch { return null; }
 }
-function saveCurrentOrder(o) {
-  try { localStorage.setItem(CURRENT_KEY, JSON.stringify(o)); } catch(e){ console.error(e); }
-}
+function saveCurrentOrder(o) { try { localStorage.setItem(CURRENT_KEY, JSON.stringify(o)); } catch(e){ console.error(e); } }
 function saveOrderToHistory(order) {
-  try {
-    const arr = JSON.parse(localStorage.getItem(ORDERS_KEY) || "[]");
-    arr.unshift(order);
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(arr));
-  } catch (e) { console.error(e); }
+  try { const arr = JSON.parse(localStorage.getItem(ORDERS_KEY) || "[]"); arr.unshift(order); localStorage.setItem(ORDERS_KEY, JSON.stringify(arr)); } catch(e) { console.error(e); }
 }
 function saveDispatchOrder(dispatch) {
-  try {
-    const arr = JSON.parse(localStorage.getItem(DISPATCH_KEY) || "[]");
-    arr.unshift(dispatch);
-    localStorage.setItem(DISPATCH_KEY, JSON.stringify(arr));
-  } catch (e) { console.error(e); }
+  try { const arr = JSON.parse(localStorage.getItem(DISPATCH_KEY) || "[]"); arr.unshift(dispatch); localStorage.setItem(DISPATCH_KEY, JSON.stringify(arr)); } catch(e) { console.error(e); }
 }
 
 function seedExampleOrderIfMissing() {
@@ -141,16 +123,9 @@ function renderResumen() {
   payWrap.innerHTML = "";
   if (order.payment) {
     const span = document.createElement("span");
-    if (order.payment.status === "success") {
-      span.className = "badge-paid";
-      span.textContent = "Pago procesado";
-    } else if (order.payment.status === "failed") {
-      span.className = "badge-failed";
-      span.textContent = "Pago no procesado";
-    } else {
-      span.className = "muted-small";
-      span.textContent = "Pago: pendiente";
-    }
+    if (order.payment.status === "success") { span.className = "badge-paid"; span.textContent = "Pago procesado"; }
+    else if (order.payment.status === "failed") { span.className = "badge-failed"; span.textContent = "Pago no procesado"; }
+    else { span.className = "muted-small"; span.textContent = "Pago: pendiente"; }
     payWrap.appendChild(span);
   }
 
@@ -163,7 +138,7 @@ function renderResumen() {
     const row = document.createElement("div");
     row.className = "line";
     const nameHtml = document.createElement("div");
-    nameHtml.innerHTML = `<div>${escapeHtml(item.nombre)} ${item.modificadores && item.modificadores.length ? `<div class="modifier">${escapeHtml(item.modificadores.join(", "))}</div>` : ""}</div>`;
+    nameHtml.innerHTML = `<div>${escapeHtml(item.nombre)} ${item.modificadores && item.modificadores.length ? `<div class="small-note">${escapeHtml(item.modificadores.join(", "))}</div>` : ""}</div>`;
     const priceHtml = document.createElement("div");
     priceHtml.className = "text-end";
     priceHtml.textContent = `$ ${Number(montoItem).toLocaleString()}`;
@@ -186,7 +161,7 @@ function renderDispatchInfoForOrder(orderId) {
   if (d) {
     const card = document.createElement("div");
     card.className = "alert alert-success";
-    card.innerHTML = `<strong>Orden de despacho generada</strong><div>Dispatch ID: ${escapeHtml(d.id)}</div><div>Asignado a: Cocina - ${escapeHtml(d.assigned.kitchen)}; Despacho - ${escapeHtml(d.assigned.delivery)}</div><div class="small-note mt-1">Creada: ${new Date(d.createdAt).toLocaleString()}</div>`;
+    card.innerHTML = `<strong>Orden de despacho generada</strong><div>Dispatch ID: ${escapeHtml(d.id)}</div><div class="small-note">Asignado a: Cocina - ${escapeHtml(d.assigned.kitchen)}; Despacho - ${escapeHtml(d.assigned.delivery)}</div><div class="small-note mt-1">Creada: ${new Date(d.createdAt).toLocaleString()}</div>`;
     wrap.appendChild(card);
   }
 }
@@ -227,27 +202,25 @@ function confirmarPedido() {
   localStorage.removeItem(CURRENT_KEY);
   document.getElementById("pedidoEstado").textContent = "Confirmado";
   showMessage("Pedido confirmado. Se ha guardado en el historial.", "success");
-  setTimeout(()=> {
-    renderResumen();
-  }, 600);
+
+  setTimeout(() => {
+    window.location.href = 'B16Final.html';
+  }, 700);
 }
+
+function modificarPedido() { history.back(); }
 
 function generateDispatchOrderIfNeeded(order) {
   try {
     if (!order) return;
-    if (order.tipo === "virtual" && (!order.payment || order.payment.status !== "success")) {
-      return;
-    }
+    if (order.tipo === "virtual" && (!order.payment || order.payment.status !== "success")) return;
     const existing = JSON.parse(localStorage.getItem(DISPATCH_KEY) || "[]").find(d => d.orderId === order.id);
     if (existing) return;
     const dispatch = {
       id: "D-" + Math.random().toString(36).slice(2,9).toUpperCase(),
       orderId: order.id,
       items: order.productos || [],
-      assigned: {
-        kitchen: pickKitchenTeam(),
-        delivery: pickDeliveryTeam()
-      },
+      assigned: { kitchen: pickKitchenTeam(), delivery: pickDeliveryTeam() },
       createdAt: Date.now(),
       status: "assigned"
     };
@@ -257,25 +230,13 @@ function generateDispatchOrderIfNeeded(order) {
   } catch(e) { console.error(e); }
 }
 
-function pickKitchenTeam() {
-  const teams = ["Equipo A", "Equipo B", "Equipo C"];
-  return teams[Math.floor(Math.random()*teams.length)];
-}
-function pickDeliveryTeam() {
-  const teams = ["Reparto 1", "Reparto 2", "Reparto 3"];
-  return teams[Math.floor(Math.random()*teams.length)];
-}
+function pickKitchenTeam() { const teams = ["Equipo A","Equipo B","Equipo C"]; return teams[Math.floor(Math.random()*teams.length)]; }
+function pickDeliveryTeam() { const teams = ["Reparto 1","Reparto 2","Reparto 3"]; return teams[Math.floor(Math.random()*teams.length)]; }
 
-function modificarPedido() {
-  history.back();
-}
-
-let _msgTimer = null;
 function showMessage(text, type='info') {
-  clearTimeout(_msgTimer);
   const area = document.getElementById("msgArea");
-  area.innerHTML = `<div class="alert alert-${type}">${text}</div>`;
-  _msgTimer = setTimeout(()=> area.innerHTML = "", 4000);
+  area.innerHTML = `<div class="alert alert-${type}">${escapeHtml(text)}</div>`;
+  setTimeout(()=> area.innerHTML = "", 3500);
 }
 function escapeHtml(s){ return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
 function capitalize(s){ if(!s) return s; return s.charAt(0).toUpperCase() + s.slice(1); }
