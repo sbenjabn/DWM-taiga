@@ -75,6 +75,7 @@
               </div>
               <div id="perfilActions" class="d-none">
                 <button class="btn btn-danger btn-sm me-2" onclick="confirmarEliminarSeleccionado()">Eliminar</button>
+                <!-- Editar redirige a B06Final.html -->
                 <button class="btn btn-outline-secondary btn-sm" onclick="editarClienteSeleccionado()">Editar</button>
               </div>
             </div>
@@ -106,7 +107,7 @@
   </div>
 </div>
 
-<!-- Modal: Nuevo / Editar Cliente -->
+<!-- Modal: Nuevo / Editar Cliente (solo para creación local) -->
 <div class="modal fade" id="modalCliente" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">
@@ -132,6 +133,7 @@
 </div>
 
 <script>
+/* B07Final (actualizado): Al presionar Editar redirige a B06Final.html?id=<cliente.id> */
 
 const STORAGE_KEY = "bb_gestion_clientes_v1";
 
@@ -193,8 +195,8 @@ function renderClientes() {
     item.className = "list-group-item d-flex justify-content-between align-items-start";
     item.innerHTML = `
       <div class="client-row" style="flex:1" onclick="seleccionarCliente('${c.id}')">
-        <div class="fw-semibold">${c.nombre}</div>
-        <div class="muted-small">${c.email} · ${c.telefono}</div>
+        <div class="fw-semibold">${escapeHtml(c.nombre)}</div>
+        <div class="muted-small">${escapeHtml(c.email)} · ${escapeHtml(c.telefono)}</div>
       </div>
       <div class="text-end d-flex align-items-center gap-2">
         <div>
@@ -202,6 +204,7 @@ function renderClientes() {
           ${hasReclamos ? `<span class="badge bg-danger badge-small ms-1">Reclamos: ${c.reclamos.length}</span>` : ''}
         </div>
         <button class="btn btn-sm btn-outline-danger delete-btn" title="Eliminar cliente" onclick="eliminarClientePorId(event,'${c.id}')">✖</button>
+        <button class="btn btn-sm btn-outline-secondary ms-1" title="Editar cliente" onclick="event.stopPropagation(); editarClientePorBoton('${c.id}')">✎</button>
       </div>
     `;
     cont.appendChild(item);
@@ -242,15 +245,15 @@ function seleccionarCliente(id) {
         const montoText = (ev.monto !== null && typeof ev.monto !== 'undefined') ? `$ ${Number(ev.monto).toLocaleString()}` : 'N/D';
         const canalText = ev.canal || 'N/D';
         row.innerHTML = `<div><strong>Pedido</strong> · ${fecha} ${hora} · ID: ${ev.id || 'N/D'}</div>
-        <div class="muted-small">Producto: ${productoText} · Monto: ${montoText} · Canal: ${canalText}</div>`;
-
+        <div class="muted-small">Producto: ${escapeHtml(productoText)} · Monto: ${escapeHtml(montoText)} · Canal: ${escapeHtml(canalText)}</div>`;
     } else {
-      row.innerHTML = `<div><strong>Reclamo</strong> · ${fecha} ${hora}</div><div class="muted-small">Motivo: ${ev.detalle.motivo} · Estado: ${ev.detalle.estado}</div>`;
+      row.innerHTML = `<div><strong>Reclamo</strong> · ${fecha} ${hora}</div><div class="muted-small">Motivo: ${escapeHtml(ev.detalle.motivo)} · Estado: ${escapeHtml(ev.detalle.estado)}</div>`;
     }
     hist.appendChild(row);
   });
 }
 
+/* Eliminar cliente desde listado */
 function eliminarClientePorId(event, id) {
   event.stopPropagation();
   const cliente = clientes.find(c => c.id === id);
@@ -262,6 +265,7 @@ function eliminarClientePorId(event, id) {
   renderClientes();
 }
 
+/* Confirmar eliminar seleccionado */
 function confirmarEliminarSeleccionado() {
   if (!seleccionadoId) return alert("No hay cliente seleccionado.");
   const cliente = clientes.find(c => c.id === seleccionadoId);
@@ -273,20 +277,23 @@ function confirmarEliminarSeleccionado() {
   renderClientes();
 }
 
+/* EDIT: Redirect to external editor page B06Final.html */
+/* Called from profile Edit button */
 function editarClienteSeleccionado() {
-  if (!seleccionadoId) return alert("No hay cliente seleccionado.");
-  const cliente = clientes.find(c => c.id === seleccionadoId);
-  if (!cliente) return;
-  document.getElementById("modalTitle").textContent = "Editar cliente";
-  document.getElementById("modalNombre").value = cliente.nombre;
-  document.getElementById("modalEmail").value = cliente.email;
-  document.getElementById("modalTelefono").value = cliente.telefono || "";
-  document.getElementById("modalError").classList.add("d-none");
-  const modal = new bootstrap.Modal(document.getElementById("modalCliente"));
-  modal.show();
-  document.getElementById("modalGuardarBtn").onclick = function() { guardarClienteModal(true); };
+  if (!seleccionadoId) return showMessage("Selecciona primero un cliente", "warning");
+  redirectToEditor(seleccionadoId);
+}
+/* Called from Edit button in list */
+function editarClientePorBoton(id) {
+  redirectToEditor(id);
+}
+function redirectToEditor(clientId) {
+  // If the editor expects email instead, change to ?email=...
+  const target = `B06Final.html?id=${encodeURIComponent(clientId)}`;
+  window.location.href = target;
 }
 
+/* Nuevo cliente (opens modal to create) */
 function abrirPerfilNuevo() {
   document.getElementById("modalTitle").textContent = "Nuevo cliente";
   document.getElementById("modalNombre").value = "";
@@ -298,6 +305,7 @@ function abrirPerfilNuevo() {
   document.getElementById("modalGuardarBtn").onclick = function() { guardarClienteModal(false); };
 }
 
+/* Guardar (creación o edición removed) — editing via external page now */
 function guardarClienteModal(isEdit = false) {
   const nombre = document.getElementById("modalNombre").value.trim();
   const email = document.getElementById("modalEmail").value.trim();
@@ -310,17 +318,8 @@ function guardarClienteModal(isEdit = false) {
     return;
   }
   if (isEdit && seleccionadoId) {
-    const idx = clientes.findIndex(c => c.id === seleccionadoId);
-    if (idx !== -1) {
-      clientes[idx].nombre = nombre;
-      clientes[idx].email = email;
-      clientes[idx].telefono = telefono;
-      saveState();
-      renderClientes();
-      seleccionarCliente(clientes[idx].id);
-      bootstrap.Modal.getInstance(document.getElementById("modalCliente")).hide();
-      return;
-    }
+    // This branch is intentionally left empty because editing now happens on B06Final.html
+    return;
   }
   const nuevo = { id: "c-" + Math.random().toString(36).slice(2,8), nombre, email, telefono, pedidos: [], reclamos: [] };
   clientes.push(nuevo);
@@ -329,6 +328,7 @@ function guardarClienteModal(isEdit = false) {
   bootstrap.Modal.getInstance(document.getElementById("modalCliente")).hide();
 }
 
+/* Exportar historial */
 function exportarHistorial() {
   if (!seleccionadoId) return alert("Selecciona un cliente primero.");
   const cliente = clientes.find(c => c.id === seleccionadoId);
@@ -344,13 +344,13 @@ function exportarHistorial() {
   URL.revokeObjectURL(url);
 }
 
+/* Filtros helpers */
 function limpiarFiltros() {
   document.getElementById("buscarCliente").value = "";
   document.getElementById("filtroFrecuencia").value = "";
   document.getElementById("filtroInteraccion").value = "";
   renderClientes();
 }
-
 function actualizarInfoFiltro() {
   const fFreq = document.getElementById("filtroFrecuencia").value;
   const fInt = document.getElementById("filtroInteraccion").value;
@@ -370,9 +370,28 @@ function limpiarHistorialVista() {
   seleccionadoId = null;
 }
 
+/* Storage */
+function saveState() { localStorage.setItem(STORAGE_KEY, JSON.stringify(clientes)); }
+function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) { clientes = SAMPLE; saveState(); } else clientes = JSON.parse(raw);
+  } catch { clientes = SAMPLE; }
+}
+
+/* UI helpers */
+function escapeHtml(s){ return (s||'').toString().replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;'); }
+function showMessage(text, type='info'){
+  const el = document.createElement('div');
+  el.className = `alert alert-${type} mt-3`;
+  el.textContent = text;
+  document.querySelector('.container').insertBefore(el, document.querySelector('.container').children[1]);
+  setTimeout(()=> el.remove(), 3000);
+}
+
+/* Init */
 loadState();
 renderClientes();
-
 </script>
 </body>
 </html>
